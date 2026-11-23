@@ -93,7 +93,7 @@
     $("led-off").disabled = $("led-on").disabled = !ready || client.config?.model !== 5;
     $("preview-model").disabled = client.ready || busy;
     $("rotate").disabled=busy || ["calendar","photo-calendar","course"].includes(tab) || (tab==="image" && $("image-target").value==="calendar");
-    $("packet-bytes").disabled = $("packet-delay").disabled = $("render-reset").disabled = busy;
+    $("packet-bytes").disabled = $("packet-delay").disabled = $("transfer-defaults").disabled = $("render-reset").disabled = busy;
     const canSend = ready && client.canPublish && !!frame && !loading && drawable.has(tab);
     const screenScene=["calendar","photo-calendar","course","todo","stock"].includes(tab);document.documentElement.dataset.screenScene=String(screenScene);
     $("publish").disabled = $("store-frame").disabled = !canSend || screenScene;
@@ -397,7 +397,7 @@
       log("课表已应用并读回：位置 "+saved.slot+"，页 "+(saved.page+1));client.offlineRotation=null;
     }else if(p.content==="photo"){
       const pixels=OMScreen.background(client.config.model);if(!pixels)throw Error("请先读取或选择背景图片，让预览与屏幕一致");
-      const state=await client.gallery(!!p.source),crc=OMProtocol.crc16(OMProtocol.imageBytes(pixels,client.config.model));let slot=p.slot,row=state.slots.find(s=>s.slot===slot);
+      const state=await client.gallery(!!p.source, {photoSlot:p.slot}),crc=OMProtocol.crc16(OMProtocol.imageBytes(pixels,client.config.model));let slot=p.slot,row=state.slots.find(s=>s.slot===slot);
       if(slot>=state.photoCount || !row?.valid || row.color!==(client.config.model===5?3:2) || row.crc!==crc){
         slot=state.slots.find(s=>s.slot<state.photoCount && s.available && !s.valid)?.slot;if(slot===undefined)throw Error("照片区没有空位置，原有图片未覆盖；应用区不保存轮播照片");
         await client.store(pixels,slot,!!p.source,progress);OMScreen.setBackground(pixels,client.config.model,slot,p.source,p.fit);p=OMScreen.capture();applied=OMScreen.signature(screenData(),p);
@@ -736,6 +736,11 @@
     const value = ["theme", "dither"].includes(key) ? $(id).value : Number($(id).value);
     change(data => { data.settings[key] = value; }); applySettings();
   }, ""));
+  bind("transfer-defaults", () => {
+    const {packetBytes, packetDelay} = F.defaults().settings;
+    store.change(data => Object.assign(data.settings, {packetBytes, packetDelay}));
+    applySettings();
+  }, OMI18n.t("已使用协商包长，上限 244 B，包间隔 0 ms。"));
   bind("render-reset", () => { change(data => { data.settings = F.defaults().settings; }); applySettings(); }, OMI18n.t("渲染默认值已恢复。"));
   bind("workspace-export",()=>OMScreen.exportPlan(),"完整屏幕方案已导出，含课程、考试、布局和已备份背景。");
   $("workspace-import").addEventListener("change",e=>action(async()=>{

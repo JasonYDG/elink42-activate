@@ -138,6 +138,8 @@ const OMProtocol = (() => {
     if (state.width !== WIDTH || state.height !== HEIGHT || state.count > 45 || !state.count ||
         state.imageBytes !== 30000 || state.slotBytes !== 32768 ||
         (!external && state.slotBytes * state.count > 0xB6000)) throw Error(OMI18n.t("设备图库容量或画面格式不符合本屏，已停止写入"));
+    const occupied = bytes.slice(36);
+    if (occupied.length === state.count && occupied.every(flag => flag === 0 || flag === 1)) state.occupied = occupied;
     return state;
   }
   function metadata(bytes, slot, external = false) {

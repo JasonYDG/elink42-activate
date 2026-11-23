@@ -10,7 +10,7 @@ const OMFeatures = (() => {
   };
   const defaults = () => ({version: 1, todos: [], courses: Array.from({length: 7}, () => ""), templates: [], jobs: [],
     devices: [], settings: {fontSize: 16, urgentHours: 24, theme: "system", dither: "none", strength: 1,
-      brightness: 0, contrast: 1, gamma: 1, redThreshold: 1.35, packetBytes: 180, packetDelay: 0, stockInterval:15, calendarCountry:0, calendarLanguage:"zh", imageTarget:"full"}, weather: null});
+      brightness: 0, contrast: 1, gamma: 1, redThreshold: 1.35, packetBytes: 244, packetDelay: 0, stockInterval:15, calendarCountry:0, calendarLanguage:"zh", imageTarget:"full"}, weather: null});
   function validate(data) {
     if (!data || data.version !== 1) throw Error(OMI18n.t("备份版本不支持"));
     if(data.screenProfile!==undefined && typeof OMScreen!=="undefined")OMScreen.normalise(data.screenProfile);
@@ -43,10 +43,10 @@ const OMFeatures = (() => {
     bounded(s.fontSize, 8, 32, OMI18n.t("字号")); bounded(s.urgentHours, 0, 8760, OMI18n.t("紧急时限")); bounded(s.strength, 0, 1, OMI18n.t("抖动强度"));
     bounded(s.brightness, -128, 128, OMI18n.t("亮度")); bounded(s.contrast, .1, 3, OMI18n.t("对比度")); bounded(s.gamma, .1, 4, "Gamma");
     bounded(s.redThreshold, 1, 3, OMI18n.t("红色阈值"));
-    bounded(s.packetBytes ?? 180, 20, 180, OMI18n.t("传输上限")); bounded(s.packetDelay ?? 0, 0, 100, OMI18n.t("包间隔"));
-    if (!Number.isInteger(s.packetBytes ?? 180) || !Number.isInteger(s.packetDelay ?? 0)) throw Error(OMI18n.t("传输设置必须是整数"));
+    bounded(s.packetBytes ?? 244, 20, 244, OMI18n.t("传输上限")); bounded(s.packetDelay ?? 0, 0, 100, OMI18n.t("包间隔"));
+    if (!Number.isInteger(s.packetBytes ?? 244) || !Number.isInteger(s.packetDelay ?? 0)) throw Error(OMI18n.t("传输设置必须是整数"));
     if (data.weather !== null) weather(data.weather);
-    return clone({...data, settings: {...s, packetBytes: s.packetBytes ?? 180, packetDelay: s.packetDelay ?? 0}});
+    return clone({...data, settings: {...s, packetBytes: s.packetBytes ?? 244, packetDelay: s.packetDelay ?? 0}});
   }
   function template(value) {
     if (!value || value.width !== 400 || value.height !== 300 || !Array.isArray(value.elements) || value.elements.length > 100)

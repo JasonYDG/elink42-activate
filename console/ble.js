@@ -24,7 +24,7 @@ class OMClient {
   get canPublish() { return [2, 5].includes(this.config?.model); }
   get deviceInfoSupported() { return OMProtocol.sdkBoard(this.board) ? !!(this.sdkCapabilities & 1) : this.firmwareRevision >= 32 && this.board?.name === OMProtocol.OTA_MARKER; }
   setTransfer(payload, delay) {
-    OMProtocol.integer(payload, 20, 180, OMI18n.t("传输上限")); OMProtocol.integer(delay, 0, 100, OMI18n.t("包间隔"));
+    OMProtocol.integer(payload, 20, 244, OMI18n.t("传输上限")); OMProtocol.integer(delay, 0, 100, OMI18n.t("包间隔"));
     if (this.busy) throw Error(OMI18n.t("传输中无法修改包设置"));
     this.transferPayload = payload; this.packetDelay = delay;
     this.payload = Math.min(this.reportedPayload || 20, payload);
@@ -362,7 +362,7 @@ class OMClient {
       await this.command(Uint8Array.of(0x25));
       const size = Number(OMProtocol.text(await mtu.promise).slice(4));
       if (!Number.isInteger(size) || size < 20 || size > 512) throw Error(OMI18n.t("设备返回的传输大小无效"));
-      this.payload = Math.min(size, this.transferPayload || 180);
+      this.payload = Math.min(size, this.transferPayload || 244);
       this.reportedPayload = size;
       this.log(OMI18n.t("原屏型初始化完成，设备回执 ") + OMProtocol.text(await initialized.promise));
       await this.waitForDisplay(true);
@@ -418,6 +418,7 @@ class OMClient {
     const code=region.code, option=(style<<3) | (photo?1:0) | (this.sdkRevision>=6 && language==="en"?0:2) | (photo && fit==="contain"?4:0);
     const time=OMProtocol.time(date,1,OMCalendar.zone(code,date));
     return this.operation(async()=>{
+      const startedAt = performance.now();
       this.requireRefreshStatus();
       if (!await this.readCalendar()) throw Error(OMI18n.t("此屏无法读取日历设置。"));
       await this.waitForDisplay();
@@ -454,6 +455,7 @@ class OMClient {
       if(!await this.readCalendar() || this.config.alternate!==option || this.config.layout!==country || this.config.mode!==1)
         throw Error(OMI18n.t("Calendar presentation readback mismatch"));
       await this.checkBoard();
+      if (photo) this.log(OMI18n.msg`图片日历提交及设备回执耗时 ${((performance.now() - startedAt) / 1000).toFixed(1)} s`);
     });
   }
   async storageState(external) {
@@ -483,14 +485,19 @@ class OMClient {
     if (!row.valid || row.width !== 400 || row.height !== 300 || row.size !== 30000 ||
         row.color !== (this.config.model === 5 ? 3 : 2)) throw Error(OMI18n.t("槽位图片格式不符合当前屏型，已停止显示以保留设备数据"));
   }
-  async gallery(external = false) {
+  async gallery(external = false, {photoSlot} = {}) {
     return this.operation(async () => {
       await this.initialize();
       const state = await this.storageState(external), slots = [];
       for (let slot = 0; slot < state.count; slot++) {
-        const row = await this.slotMetadata(slot, external);
+        const occupied = OMProtocol.sdkBoard(this.board) ? state.occupied?.[slot] : undefined;
+        // A calendar update only needs the selected photo and empty photo slots.
+        if (photoSlot !== undefined && (slot >= state.photoCount || (occupied === 1 && slot !== photoSlot))) continue;
+        const empty = occupied === 0;
+        const row = empty ? {slot, valid:false, color:0, width:0, height:0, size:0, crc:0} :
+          await this.slotMetadata(slot, external);
         row.available=state.availableSlots.includes(slot);
-        if (row.valid && this.reportedPayload >= 66) {
+        if (photoSlot === undefined && row.valid && this.reportedPayload >= 66) {
           const reply = await this.request(Uint8Array.of(external ? 0x54 : 0x4A, slot),
             b => b[0] === (external ? 0x75 : 0x52) && b[1] === slot, OMI18n.t("读取备注"));
           if (reply.length !== 66) throw Error(OMI18n.t("备注长度不符"));
@@ -537,10 +544,15 @@ class OMClient {
       view.setUint16(2, 400, true); view.setUint16(4, 300, true); start[6] = this.config.model === 5 ? 3 : 2;
       if(school)start[6]|=128;
       await this.write(start);
+      const sendingAt = performance.now(), packets = Math.ceil(bytes.length / (this.payload - 1));
+      this.log(OMI18n.msg`图片传输 · 协商 ${this.reportedPayload} B · 实际 ${this.payload} B · 包数 ${packets} · 包间隔 ${this.packetDelay || 0} ms`);
       for (let off = 0; off < bytes.length; off += this.payload - 1) {
         await this.write(Uint8Array.of(external ? 0x4D : 0x41, ...bytes.subarray(off, off + this.payload - 1)));
         progress(Math.min(99, Math.floor((off + this.payload - 1) / 300)), OMI18n.t("保存图片至空槽 ") + slot);
       }
+      const receivedAt = performance.now();
+      this.log(OMI18n.msg`像素发送并确认耗时 ${((receivedAt - sendingAt) / 1000).toFixed(1)} s`);
+      progress(99, OMI18n.t("像素已发送，正在写入图库并校验"));
       await this.write(Uint8Array.of(external ? 0x4E : 0x42));
       const row = await this.slotMetadata(slot, external);
       if (!row.valid || row.width !== 400 || row.height !== 300 || row.size !== bytes.length || row.crc !== crc || row.color !== start[6]) {
@@ -548,6 +560,7 @@ class OMClient {
         error.code="DISPLAY_NOT_READY";throw error;
       }
       this.log(OMI18n.t("槽位 ") + slot + OMI18n.t(" 已记录 30,000 字节，CRC 匹配。"));
+      this.log(OMI18n.msg`图库写入及校验耗时 ${((performance.now() - receivedAt) / 1000).toFixed(1)} s`);
       return row;
     });
   }
