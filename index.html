@@ -9,9 +9,9 @@
   <title>ELINK42 · 屏幕激活</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="portal.css?v=36a05bcedac6">
-  <script src="activation.js?v=1abac68eb734" defer></script>
+  <script src="activation.js?v=31120ac9d671" defer></script>
   <script src="console/protocol.js" defer></script>
-  <script src="portal.js?v=b042e6d64b8c" defer></script>
+  <script src="portal.js?v=ec9e733bd6da" defer></script>
 </head>
 <body>
   <header><div class="wrap bar"><a class="brand" href="./">ELINK<span>42</span></a>
@@ -20,9 +20,10 @@
   <main class="wrap">
     <h1>屏幕激活</h1>
     <p class="intro">把激活请求发给固件发布者，收到授权文件后，在这里写入自己的墨水屏。</p>
-    <aside class="release" id="first-use"><strong>首次使用</strong><p>先刷入对应屏型的固件，再连接屏幕导出激活请求。已经激活并重启的屏幕，可直接<a href="console/">进入完整控制台</a>。</p></aside>
+    <aside class="release" id="first-use"><strong>首次使用</strong><p>先刷入对应屏型的固件，再连接屏幕导出激活请求。屏幕已经显示二维码时，可直接<a href="console/">进入完整控制台</a>。</p></aside>
     <section id="next-step" class="next-step" aria-labelledby="next-title" hidden>
       <h2 id="next-title" tabindex="-1">激活成功</h2>
+      <p id="auto-step" hidden><strong>请保持供电，等屏幕显示二维码。</strong>首次启动会安装控制程序，蓝牙会短暂断开。二维码出现后，扫码或点下方按钮即可配置。</p>
       <p id="restart-step"><strong>先给屏幕断电重启。</strong>取下电池，再装回去；使用 USB 供电时，拔掉电源再接上。首次启动会安装控制程序，请保持供电。</p>
       <p>在完整控制台点击「连接屏幕」，选择刚激活的这块屏，即可配置日历或发送图片。</p>
       <a id="continue" class="enter" href="console/" hidden>打开完整控制台</a>

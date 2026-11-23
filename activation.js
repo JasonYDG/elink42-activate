@@ -55,8 +55,9 @@ const ELActivation = (() => {
     catch (err) { if (err.name === "NotFoundError") return null; throw err; }
     const value = await characteristic.readValue();
     if (value.byteLength !== 4 && value.byteLength !== 5) throw Error("屏幕返回的电压读数格式有误。");
+    const flags = value.byteLength === 5 ? value.getUint8(4) : 0;
     return {mv:value.getUint16(0,true), minimum:value.getUint16(2,true),
-      controlBoot:value.byteLength===5 && value.getUint8(4)===1};
+      controlBoot:!!(flags & 1), autoStart:(flags & 3) === 3};
   }
   async function requireActive(server) {
     const service = await getService(server);
@@ -64,7 +65,10 @@ const ELActivation = (() => {
     if (state === "stageOccupied") throw Error("授权已保存。无线升级暂存区已有数据，控制程序已停止安装。请联系发布者核对暂存区。");
     if (state === "controlError") throw Error("控制程序安装或校验失败。请保持稳定供电并重新上电，仍失败时请核对刷机文件。");
     if (state !== "active") throw new Error("屏幕尚未确认激活。请先返回激活页面。");
-    if ((await readPower(service))?.controlBoot)
+    const power = await readPower(service);
+    if (power?.autoStart)
+      throw Error("授权已保存，屏幕正在自动启动。请保持供电，待二维码出现后再连接。");
+    if (power?.controlBoot)
       throw Error("授权已保存。请给屏幕重新上电，待控制程序启动后再连接。");
   }
   async function readRequest(service) {

@@ -12,7 +12,7 @@
   let nextStep = null;
   try {
     const saved = window.sessionStorage?.getItem(nextKey);
-    if (saved === "restart" || saved === "ready") nextStep = saved;
+    if (["auto", "restart", "ready"].includes(saved)) nextStep = saved;
   } catch { /* Storage may be disabled. The current page still works. */ }
   function rememberNext(value) {
     if (nextStep === value) return;
@@ -44,8 +44,10 @@
     $("import").disabled = !canActivate;
     $("first-use").hidden = !!nextStep;
     $("next-step").hidden = !nextStep;
-    $("next-title").textContent = nextStep === "restart" ? "激活成功，请重启屏幕" : "屏幕已激活，可以开始配置";
+    const titles = {auto:"激活成功，屏幕正在自动启动", restart:"激活成功，请重启屏幕", ready:"屏幕已激活，可以开始配置"};
+    $("next-title").textContent = titles[nextStep] || "激活成功";
     $("restart-step").hidden = nextStep !== "restart";
+    $("auto-step").hidden = nextStep !== "auto";
     $("continue").hidden = !nextStep;
   }
   function close(current) {
@@ -75,10 +77,21 @@
     catch (error) { message(error.name === "NotFoundError" ? "未选择屏幕，或缺少配套蓝牙特征。" : error.message, true); }
     finally { busy = false; render(); }
   }
+  function automaticStart(current) {
+    rememberNext("auto");
+    close(current);
+    $("next-title").focus();
+    message("授权已保存。请保持供电，等屏幕显示二维码。");
+  }
   async function inspect(current) {
     current.state = null; current.request = null; current.power = null; current.hasControl = false; render();
     const {state, failedMv, minimum} = await ELActivation.readReport(current.service);
     current.power = await ELActivation.readPower(current.service);
+    current.controller.signal.throwIfAborted();
+    if (state === "active" && current.power?.autoStart) {
+      automaticStart(current);
+      return;
+    }
     const request = state === "verifying" ? null : await ELActivation.readRequest(current.service);
     current.controller.signal.throwIfAborted();
     current.state = state; current.request = request;
@@ -171,8 +184,9 @@
       const data = new Uint8Array(await file.arrayBuffer());
       current.controller.signal.throwIfAborted();
       message("正在写入授权，等待屏幕验签。");
-      await bounded(current, ELActivation.sendLicense(current.service, data, current.controller.signal), 45000);
-      await bounded(current, inspect(current), 15000);
+      const result = await bounded(current, ELActivation.sendLicense(current.service, data, current.controller.signal), 45000);
+      if (result === "active" && current.power?.autoStart) automaticStart(current);
+      else await bounded(current, inspect(current), 15000);
     });
   });
   render();
