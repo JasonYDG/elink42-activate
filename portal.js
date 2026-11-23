@@ -7,6 +7,21 @@
     lowVoltage: "激活时电压不足", noVoltage: "激活时未取得有效电压", controlError:"控制程序校验失败"};
   const volts = mv => (mv / 1000).toFixed(3) + " V";
   let session = null, busy = false;
+  // This tab remembers which instruction to show. Authorization is checked on the device.
+  const nextKey = "elink42.activation.nextStep";
+  let nextStep = null;
+  try {
+    const saved = window.sessionStorage?.getItem(nextKey);
+    if (saved === "restart" || saved === "ready") nextStep = saved;
+  } catch { /* Storage may be disabled. The current page still works. */ }
+  function rememberNext(value) {
+    if (nextStep === value) return;
+    nextStep = value;
+    try {
+      if (value) window.sessionStorage?.setItem(nextKey, value);
+      else window.sessionStorage?.removeItem(nextKey);
+    } catch { /* Keep the instruction in memory. */ }
+  }
   function message(text, error = false) {
     $("message").textContent = text;
     $("message").classList.toggle("error", error);
@@ -14,19 +29,24 @@
   function render() {
     const connected = !!session?.service && !!session?.device.gatt.connected;
     $("connect").disabled = !supported || busy || connected;
+    $("connect").textContent = !connected && nextStep ? "激活另一块屏幕" : "连接屏幕";
     $("disconnect").hidden = !connected;
     $("refresh").hidden = !connected;
     $("refresh").disabled = busy;
     $("connection").textContent = connected ? "已连接" : "未连接";
     $("mac").textContent = session?.request?.mac || "—";
     $("model").textContent = ({2: "SSD1619 三色", 5: "JD79668 四色"})[session?.request?.model] || "—";
-    $("state").textContent = names[session?.state] || "待连接";
+    $("state").textContent = names[session?.state] || (!connected && nextStep ? "上次连接已确认激活" : "待连接");
     const power = session?.power;
     $("voltage").textContent = power ? (power.mv ? volts(power.mv) : "等待读数") + "（激活需 " + volts(power.minimum) + "）" : (connected && session.state ? "此固件未上报" : "—");
     const canActivate = connected && !busy && ["pending", "rejected", "lowVoltage", "noVoltage"].includes(session.state) && !!session.request;
     $("export").disabled = !canActivate;
     $("import").disabled = !canActivate;
-    $("continue").hidden = !connected || session.state !== "active" || !session.hasControl;
+    $("first-use").hidden = !!nextStep;
+    $("next-step").hidden = !nextStep;
+    $("next-title").textContent = nextStep === "restart" ? "激活成功，请重启屏幕" : "屏幕已激活，可以开始配置";
+    $("restart-step").hidden = nextStep !== "restart";
+    $("continue").hidden = !nextStep;
   }
   function close(current) {
     if (!current) return;
@@ -70,9 +90,14 @@
       } catch (error) {
         // A missing service is expected for a display running the activation test.
         current.controller.signal.throwIfAborted();
-        if (error.name !== "NotFoundError") throw error;
+        if (error.name !== "NotFoundError") { rememberNext(null); render(); throw error; }
       }
     }
+    const next = state === "active" && (current.hasControl ? "ready" : current.power?.controlBoot ? "restart" : null);
+    const reveal = next && next !== nextStep;
+    rememberNext(next || null);
+    render();
+    if (reveal) $("next-title").focus();
     const guidance = {
       pending: current.power?.mv && current.power.mv < current.power.minimum ?
         `当前板载电压不足（${volts(current.power.mv)}，激活最低 ${volts(current.power.minimum)}）。请稳定供电后重新读取。` :
@@ -82,8 +107,7 @@
       lowVoltage: state === "lowVoltage" && `写入授权时电压不足（${volts(failedMv)}，最低 ${volts(minimum)}）。请稳定供电后重新选择同一授权文件。`,
       noVoltage: "写入授权时未取得有效电压。请保持供电并重读状态，再选择同一授权文件。",
       controlError: "控制程序安装或校验失败。请保持稳定供电并重新上电，仍失败时请核对完整刷机文件。",
-      active: current.hasControl ? "屏幕已确认激活。可以进入控制台。" : current.power?.controlBoot ?
-        "授权已保存。请断开网页、给屏幕重新上电。首次启动会安装控制程序，待屏幕重新广播后连接控制台。" :
+      active: next ? "授权已保存。" :
         "本屏授权已通过。当前固件只提供激活服务，控制台需要配套的控制固件。",
     };
     message(guidance[state], ["rejected", "lowVoltage", "noVoltage", "controlError"].includes(state));
@@ -93,11 +117,12 @@
       filters: [{services: [ELActivation.SERVICE]}],
       optionalServices: [OMProtocol.SERVICE],
     });
+    rememberNext(null); render();
     const current = {device, controller: new AbortController()};
     session = current;
     current.onDisconnect = () => {
       if (session !== current) return;
-      close(current); message("蓝牙已断开。重新连接后可读取设备保存的授权状态。");
+      close(current); disconnectedMessage();
     };
     device.addEventListener("gattserverdisconnected", current.onDisconnect);
     try {
@@ -113,9 +138,13 @@
       await bounded(current, inspect(current), 15000);
     } catch (error) { close(current); throw error; }
   }));
+  function disconnectedMessage() {
+    message(nextStep ? "蓝牙已断开。请在完整控制台连接屏幕。" : "蓝牙已断开。重新连接后可读取设备保存的授权状态。");
+  }
   $("disconnect").addEventListener("click", () => {
-    close(session); message("已断开。下次连接时会重新读取设备状态。");
+    close(session); disconnectedMessage();
   });
+  $("continue").addEventListener("click", () => close(session));
   $("refresh").addEventListener("click", () => action(() => bounded(session, inspect(session), 15000)));
   $("export").addEventListener("click", () => action(async () => {
     const current = session;
@@ -147,4 +176,5 @@
   });
   render();
   if (!supported) message("此浏览器不支持网页蓝牙。请用桌面 Chrome、Edge 或支持网页蓝牙的 Android 浏览器打开。");
+  else if (nextStep) message("上次连接的屏幕已保存授权。");
 })();

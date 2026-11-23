@@ -13,4 +13,6 @@ button,.enter{font:inherit;font-weight:600;line-height:1.4;border:1px solid #789
 button:hover:enabled{background:#edf5ed}.primary,.enter{background:var(--green);border-color:var(--green);color:white}.primary:hover:enabled,.enter:hover{background:#103b2a}
 button:disabled{cursor:not-allowed;color:#607166;background:#edf1ed;border-color:#d4ddd6}.actions{gap:.5rem}:focus-visible{outline:3px solid #9b6820;outline-offset:3px}
 .feedback{margin-top:1.15rem;color:var(--muted)}.feedback .error{color:#982c27}.enter{display:inline-block;margin-top:.5rem;text-decoration:none}[hidden]{display:none!important}
+.next-step{background:#e8f4eb;border:1px solid #a7c5ac;border-left:5px solid var(--green);border-radius:.45rem;padding:1rem 1.25rem;margin-bottom:1.5rem}
+.next-step h2{color:var(--green);margin-bottom:.4rem}.next-step p{color:var(--ink);margin:.35rem 0}.next-step .enter{margin-top:.65rem}
 @media(max-width:42rem){.panels{grid-template-columns:1fr}.wrap{width:min(100% - 1.5rem,64rem)}.bar{min-height:3.8rem}nav{gap:.8rem}}
