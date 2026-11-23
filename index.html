@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="为自购 ELINK42 墨水屏导出激活请求、导入专属授权，并进入屏幕控制台。">
+  <title>ELINK42 · 屏幕激活</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="portal.css">
+  <script src="activation.js" defer></script>
+  <script src="console/protocol.js" defer></script>
+  <script src="portal.js" defer></script>
+</head>
+<body>
+  <header><div class="wrap bar"><a class="brand" href="./">ELINK<span>42</span></a>
+    <nav aria-label="站点导航"><a href="console/">预览控制台</a></nav>
+  </div></header>
+  <main class="wrap">
+    <h1>屏幕激活</h1>
+    <p class="intro">把激活请求发给固件发布者，收到授权文件后，在这里写入自己的墨水屏。</p>
+    <aside class="release"><strong>首次使用</strong><p>先按发布者的说明刷入对应屏型的测试 HEX，再连接屏幕导出激活请求。</p></aside>
+    <div class="panels">
+      <section aria-labelledby="device-heading"><h2 id="device-heading">连接屏幕</h2>
+        <p>使用支持网页蓝牙的 Chrome 或 Edge，靠近屏幕并保持供电。</p>
+        <dl><div><dt>蓝牙状态</dt><dd id="connection">未连接</dd></div>
+          <div><dt>屏型</dt><dd id="model">—</dd></div>
+          <div><dt>设备 MAC</dt><dd id="mac">—</dd></div>
+          <div><dt>设备授权</dt><dd id="state">待连接</dd></div></dl>
+        <div class="actions"><button id="connect" type="button" class="primary" disabled>连接屏幕</button>
+          <button id="disconnect" type="button" hidden>断开</button>
+          <button id="refresh" type="button" hidden>重读状态</button></div>
+      </section>
+      <section aria-labelledby="auth-heading"><h2 id="auth-heading">激活文件</h2>
+        <div class="step"><h3>导出本屏请求</h3><p>文件包含 MAC、设备公钥和固件包指纹。下载后自行发给发布者。</p>
+          <button id="export" type="button" disabled>下载激活请求</button></div>
+        <div class="step"><h3>导入专属授权</h3><p>选择发布者返回的 <code>.e42lic</code> 文件。写入后，请查看屏幕返回的授权状态。</p>
+          <input id="license" type="file" accept=".e42lic" hidden>
+          <button id="import" type="button" disabled>选择授权文件</button></div>
+      </section>
+    </div>
+    <div class="feedback" role="status" aria-live="polite" aria-atomic="true"><p id="message">等待连接屏幕。</p>
+      <a id="continue" class="enter" href="console/" hidden>进入屏幕控制台</a></div>
+    <noscript>请启用 JavaScript 以连接屏幕。</noscript>
+  </main>
+</body>
+</html>

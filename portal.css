@@ -1,0 +1,16 @@
+:root{color-scheme:light;--ink:#192820;--muted:#4b5c51;--line:#c6d2c7;--green:#18543c;font:16px/1.6 "Microsoft YaHei",system-ui,sans-serif;color:var(--ink);background:#f5f8f5}
+*{box-sizing:border-box}body{margin:0}.wrap{width:min(100% - 2.5rem,64rem);margin-inline:auto}header{background:white;border-bottom:1px solid var(--line)}
+.bar,nav,.actions{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}.bar{justify-content:space-between;min-height:4.5rem}
+a{color:var(--green);text-underline-offset:.18em}nav a,.brand{text-decoration:none}nav a:hover,.brand:hover{text-decoration:underline}
+.brand{font:700 1.45rem/1.15 "Arial",sans-serif;letter-spacing:.015em;color:var(--ink)}.brand span{color:#3c754e}
+main{padding-block:clamp(2rem,5vw,4rem)}h1,h2,h3,p{margin:0}h1{font-size:clamp(2.1rem,5vw,3.2rem);line-height:1.15;letter-spacing:-.035em}
+.intro{margin:.8rem 0 1.6rem;font-size:1.07rem}.release{background:#fff7de;border-left:4px solid #92671b;padding:.85rem 1.1rem;margin-bottom:1.5rem;color:#4b3a18}.release p{margin-top:.18rem}
+.panels{display:grid;grid-template-columns:1fr 1.12fr;gap:1.2rem}.panels section{background:white;border:1px solid var(--line);border-radius:.7rem;padding:clamp(1.2rem,3vw,1.8rem)}
+h2{font-size:1.45rem;line-height:1.35;margin-bottom:.65rem}section p{color:var(--muted)}h3{font-size:1.05rem;line-height:1.5}
+dl{margin:1rem 0 1.3rem}dl div{display:flex;justify-content:space-between;gap:1rem;padding:.38rem 0;border-bottom:1px solid #e3eae4}dt{color:var(--muted)}dd{margin:0;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.step+.step{margin-top:1rem;padding-top:1rem;border-top:1px solid #e3eae4}.step p{margin:.22rem 0 .68rem}
+button,.enter{font:inherit;font-weight:600;line-height:1.4;border:1px solid #789481;border-radius:.36rem;background:white;color:var(--green);padding:.56rem .92rem;min-height:2.75rem;cursor:pointer}
+button:hover:enabled{background:#edf5ed}.primary,.enter{background:var(--green);border-color:var(--green);color:white}.primary:hover:enabled,.enter:hover{background:#103b2a}
+button:disabled{cursor:not-allowed;color:#607166;background:#edf1ed;border-color:#d4ddd6}.actions{gap:.5rem}:focus-visible{outline:3px solid #9b6820;outline-offset:3px}
+.feedback{margin-top:1.15rem;color:var(--muted)}.feedback .error{color:#982c27}.enter{display:inline-block;margin-top:.5rem;text-decoration:none}[hidden]{display:none!important}
+@media(max-width:42rem){.panels{grid-template-columns:1fr}.wrap{width:min(100% - 1.5rem,64rem)}.bar{min-height:3.8rem}nav{gap:.8rem}}
