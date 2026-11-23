@@ -7,7 +7,7 @@ const ELActivation = (() => {
   const REQUEST = "93adab02-76ce-468d-8bd8-f2420ecc4172";
   const LICENSE = "93adab03-76ce-468d-8bd8-f2420ecc4172";
   const POWER = "93adab04-76ce-468d-8bd8-f2420ecc4172";
-  const STATES = ["pending", "active", "verifying", "rejected", "lowVoltage", "noVoltage", "controlError"];
+  const STATES = ["pending", "active", "verifying", "rejected", "lowVoltage", "noVoltage", "controlError", "stageOccupied"];
 
   function bytes(view) {
     return new Uint8Array(view.buffer, view.byteOffset, view.byteLength).slice();
@@ -35,7 +35,7 @@ const ELActivation = (() => {
     try { return await server.getPrimaryService(SERVICE); }
     catch (error) {
       if (error.name === "NotFoundError" || error.name === "SecurityError")
-        throw new Error("屏幕未提供激活服务。请确认已刷入对应屏型的测试 HEX。");
+        throw new Error("屏幕未提供激活服务。请确认已刷入对应屏型的激活固件。");
       throw error;
     }
   }
@@ -61,6 +61,8 @@ const ELActivation = (() => {
   async function requireActive(server) {
     const service = await getService(server);
     const state = await readStatus(service);
+    if (state === "stageOccupied") throw Error("授权已保存。无线升级暂存区已有数据，控制程序已停止安装。请联系发布者核对暂存区。");
+    if (state === "controlError") throw Error("控制程序安装或校验失败。请保持稳定供电并重新上电，仍失败时请核对刷机文件。");
     if (state !== "active") throw new Error("屏幕尚未确认激活。请先返回激活页面。");
     if ((await readPower(service))?.controlBoot)
       throw Error("授权已保存。请给屏幕重新上电，待控制程序启动后再连接。");

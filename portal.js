@@ -4,7 +4,7 @@
   const $ = id => document.getElementById(id);
   const supported = window.isSecureContext && !!navigator.bluetooth;
   const names = {pending: "待激活", active: "已激活", verifying: "屏幕正在验签", rejected: "设备拒绝了上次授权",
-    lowVoltage: "激活时电压不足", noVoltage: "激活时未取得有效电压", controlError:"控制程序校验失败"};
+    lowVoltage: "激活时电压不足", noVoltage: "激活时未取得有效电压", controlError:"控制程序校验失败", stageOccupied:"已激活，升级暂存区被占用"};
   const volts = mv => (mv / 1000).toFixed(3) + " V";
   let session = null, busy = false;
   // This tab remembers which instruction to show. Authorization is checked on the device.
@@ -107,10 +107,11 @@
       lowVoltage: state === "lowVoltage" && `写入授权时电压不足（${volts(failedMv)}，最低 ${volts(minimum)}）。请稳定供电后重新选择同一授权文件。`,
       noVoltage: "写入授权时未取得有效电压。请保持供电并重读状态，再选择同一授权文件。",
       controlError: "控制程序安装或校验失败。请保持稳定供电并重新上电，仍失败时请核对完整刷机文件。",
+      stageOccupied: "授权已保存。无线升级暂存区已有数据，控制程序已停止安装。请联系发布者核对暂存区。",
       active: next ? "授权已保存。" :
         "本屏授权已通过。当前固件只提供激活服务，控制台需要配套的控制固件。",
     };
-    message(guidance[state], ["rejected", "lowVoltage", "noVoltage", "controlError"].includes(state));
+    message(guidance[state], ["rejected", "lowVoltage", "noVoltage", "controlError", "stageOccupied"].includes(state));
   }
   $("connect").addEventListener("click", () => action(async () => {
     const device = await navigator.bluetooth.requestDevice({
