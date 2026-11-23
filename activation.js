@@ -6,7 +6,8 @@ const ELActivation = (() => {
   const STATUS  = "93adab01-76ce-468d-8bd8-f2420ecc4172";
   const REQUEST = "93adab02-76ce-468d-8bd8-f2420ecc4172";
   const LICENSE = "93adab03-76ce-468d-8bd8-f2420ecc4172";
-  const STATES = ["pending", "active", "verifying", "rejected"];
+  const POWER = "93adab04-76ce-468d-8bd8-f2420ecc4172";
+  const STATES = ["pending", "active", "verifying", "rejected", "lowVoltage", "noVoltage", "controlError"];
 
   function bytes(view) {
     return new Uint8Array(view.buffer, view.byteOffset, view.byteLength).slice();
@@ -38,16 +39,31 @@ const ELActivation = (() => {
       throw error;
     }
   }
-  async function readStatus(service) {
+  async function readReport(service) {
     const c = await service.getCharacteristic(STATUS);
     const value = bytes(await c.readValue());
-    if (value.length !== 2 || value[0] !== 1 || value[1] >= STATES.length)
+    const powerFailure = value[1] === 4 || value[1] === 5;
+    if (value.length !== (powerFailure ? 6 : 2) || value[0] !== 1 || value[1] >= STATES.length)
       throw new Error("无法识别设备授权状态。请核对固件版本。");
-    return STATES[value[1]];
+    return {state: STATES[value[1]], failedMv: powerFailure ? value[2] | value[3] << 8 : null,
+      minimum: powerFailure ? value[4] | value[5] << 8 : null};
+  }
+  async function readStatus(service) { return (await readReport(service)).state; }
+  async function readPower(service) {
+    let characteristic;
+    try { characteristic = await service.getCharacteristic(POWER); }
+    catch (err) { if (err.name === "NotFoundError") return null; throw err; }
+    const value = await characteristic.readValue();
+    if (value.byteLength !== 4 && value.byteLength !== 5) throw Error("屏幕返回的电压读数格式有误。");
+    return {mv:value.getUint16(0,true), minimum:value.getUint16(2,true),
+      controlBoot:value.byteLength===5 && value.getUint8(4)===1};
   }
   async function requireActive(server) {
-    const state = await readStatus(await getService(server));
+    const service = await getService(server);
+    const state = await readStatus(service);
     if (state !== "active") throw new Error("屏幕尚未确认激活。请先返回激活页面。");
+    if ((await readPower(service))?.controlBoot)
+      throw Error("授权已保存。请给屏幕重新上电，待控制程序启动后再连接。");
   }
   async function readRequest(service) {
     const c = await service.getCharacteristic(REQUEST);
@@ -62,6 +78,9 @@ const ELActivation = (() => {
     const current = await readStatus(service);
     if (current === "active") return current;
     if (current === "verifying") throw new Error("屏幕正在验签，请稍后读取状态。");
+    const power = await readPower(service);
+    if (power && !power.mv) throw Error("屏幕还没有有效电压读数。请保持供电并重读状态。");
+    if (power && power.mv < power.minimum) throw Error(`板载电压不足（${(power.mv/1000).toFixed(3)} V，激活最低 ${(power.minimum/1000).toFixed(3)} V）。请稳定供电后重试。`);
     const c = await service.getCharacteristic(LICENSE);
     // A default ATT MTU leaves 20 bytes per write, including our 3-byte chunk header.
     signal.throwIfAborted();
@@ -73,7 +92,13 @@ const ELActivation = (() => {
     }
     signal.throwIfAborted();
     await c.writeValueWithResponse(Uint8Array.of(3));
-    return readStatus(service);
+    let result = await readStatus(service);
+    for (let i = 0; i < 20 && result === "verifying"; i++) {
+      signal.throwIfAborted();
+      await new Promise(resolve => setTimeout(resolve, 250));
+      result = await readStatus(service);
+    }
+    return result;
   }
-  return {SERVICE, getService, readStatus, requireActive, readRequest, parseRequest, sendLicense};
+  return {SERVICE, getService, readReport, readStatus, readPower, requireActive, readRequest, parseRequest, sendLicense};
 })();

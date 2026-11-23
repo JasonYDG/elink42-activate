@@ -137,7 +137,12 @@ class OMClient {
     if (this.connectCancelled) throw Error(OMI18n.t("连接已取消"));
     await this.bounded(ELActivation.requireActive(server), "检查设备授权");
     if (this.connectCancelled || !server.connected) throw Error(OMI18n.t("连接已取消"));
-    const service = await this.bounded(server.getPrimaryService(OMProtocol.SERVICE), OMI18n.t("读取服务"), 10000, true);
+    let service;
+    try { service = await this.bounded(server.getPrimaryService(OMProtocol.SERVICE), OMI18n.t("读取服务"), 10000, true); }
+    catch (error) {
+      if (error.name === "NotFoundError") throw Error("本屏已激活，但当前固件只提供激活服务。请刷入发布者提供的配套控制固件。");
+      throw error;
+    }
     this.control = await this.bounded(service.getCharacteristic(OMProtocol.CONTROL), OMI18n.t("读取控制接口"), 10000, true);
     this.control.addEventListener("characteristicvaluechanged", this.notify);
     await this.bounded(this.control.startNotifications(), OMI18n.t("启用通知"));

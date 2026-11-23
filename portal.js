@@ -3,7 +3,9 @@
 (() => {
   const $ = id => document.getElementById(id);
   const supported = window.isSecureContext && !!navigator.bluetooth;
-  const names = {pending: "待激活", active: "已激活", verifying: "屏幕正在验签", rejected: "设备拒绝了上次授权"};
+  const names = {pending: "待激活", active: "已激活", verifying: "屏幕正在验签", rejected: "设备拒绝了上次授权",
+    lowVoltage: "激活时电压不足", noVoltage: "激活时未取得有效电压", controlError:"控制程序校验失败"};
+  const volts = mv => (mv / 1000).toFixed(3) + " V";
   let session = null, busy = false;
   function message(text, error = false) {
     $("message").textContent = text;
@@ -19,7 +21,9 @@
     $("mac").textContent = session?.request?.mac || "—";
     $("model").textContent = ({2: "SSD1619 三色", 5: "JD79668 四色"})[session?.request?.model] || "—";
     $("state").textContent = names[session?.state] || "待连接";
-    const canActivate = connected && !busy && ["pending", "rejected"].includes(session.state) && !!session.request;
+    const power = session?.power;
+    $("voltage").textContent = power ? (power.mv ? volts(power.mv) : "等待读数") + "（激活需 " + volts(power.minimum) + "）" : (connected && session.state ? "此固件未上报" : "—");
+    const canActivate = connected && !busy && ["pending", "rejected", "lowVoltage", "noVoltage"].includes(session.state) && !!session.request;
     $("export").disabled = !canActivate;
     $("import").disabled = !canActivate;
     $("continue").hidden = !connected || session.state !== "active" || !session.hasControl;
@@ -52,12 +56,13 @@
     finally { busy = false; render(); }
   }
   async function inspect(current) {
-    current.state = null; current.request = null; current.hasControl = false; render();
-    const state = await ELActivation.readStatus(current.service);
+    current.state = null; current.request = null; current.power = null; current.hasControl = false; render();
+    const {state, failedMv, minimum} = await ELActivation.readReport(current.service);
+    current.power = await ELActivation.readPower(current.service);
     const request = state === "verifying" ? null : await ELActivation.readRequest(current.service);
     current.controller.signal.throwIfAborted();
     current.state = state; current.request = request;
-    if (state === "active") {
+    if (state === "active" && !current.power?.controlBoot) {
       try {
         await current.server.getPrimaryService(OMProtocol.SERVICE);
         current.controller.signal.throwIfAborted();
@@ -69,12 +74,19 @@
       }
     }
     const guidance = {
-      pending: "屏幕待激活。请下载请求文件发给发布者。",
+      pending: current.power?.mv && current.power.mv < current.power.minimum ?
+        `当前板载电压不足（${volts(current.power.mv)}，激活最低 ${volts(current.power.minimum)}）。请稳定供电后重新读取。` :
+        "屏幕待激活。请下载请求文件发给发布者。",
       rejected: "设备拒绝了授权。请核对请求文件，并向发布者索取匹配的授权。",
       verifying: "请保持供电，稍后点击“重读状态”。",
-      active: current.hasControl ? "屏幕已确认激活。可以进入控制台。" : "本屏授权测试通过。可断电重连复测。",
+      lowVoltage: state === "lowVoltage" && `写入授权时电压不足（${volts(failedMv)}，最低 ${volts(minimum)}）。请稳定供电后重新选择同一授权文件。`,
+      noVoltage: "写入授权时未取得有效电压。请保持供电并重读状态，再选择同一授权文件。",
+      controlError: "控制程序安装或校验失败。请保持稳定供电并重新上电，仍失败时请核对完整刷机文件。",
+      active: current.hasControl ? "屏幕已确认激活。可以进入控制台。" : current.power?.controlBoot ?
+        "授权已保存。请断开网页、给屏幕重新上电。首次启动会安装控制程序，待屏幕重新广播后连接控制台。" :
+        "本屏授权已通过。当前固件只提供激活服务，控制台需要配套的控制固件。",
     };
-    message(guidance[state], state === "rejected");
+    message(guidance[state], ["rejected", "lowVoltage", "noVoltage", "controlError"].includes(state));
   }
   $("connect").addEventListener("click", () => action(async () => {
     const device = await navigator.bluetooth.requestDevice({

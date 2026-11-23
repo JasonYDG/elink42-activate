@@ -20,13 +20,14 @@
   <main class="wrap">
     <h1>屏幕激活</h1>
     <p class="intro">把激活请求发给固件发布者，收到授权文件后，在这里写入自己的墨水屏。</p>
-    <aside class="release"><strong>首次使用</strong><p>先按发布者的说明刷入对应屏型的测试 HEX，再连接屏幕导出激活请求。</p></aside>
+    <aside class="release"><strong>首次使用</strong><p>先按发布者的说明刷入对应屏型的固件，再连接屏幕导出激活请求。</p></aside>
     <div class="panels">
       <section aria-labelledby="device-heading"><h2 id="device-heading">连接屏幕</h2>
         <p>使用支持网页蓝牙的 Chrome 或 Edge，靠近屏幕并保持供电。</p>
         <dl><div><dt>蓝牙状态</dt><dd id="connection">未连接</dd></div>
           <div><dt>屏型</dt><dd id="model">—</dd></div>
           <div><dt>设备 MAC</dt><dd id="mac">—</dd></div>
+          <div><dt>板载电压</dt><dd id="voltage">—</dd></div>
           <div><dt>设备授权</dt><dd id="state">待连接</dd></div></dl>
         <div class="actions"><button id="connect" type="button" class="primary" disabled>连接屏幕</button>
           <button id="disconnect" type="button" hidden>断开</button>
