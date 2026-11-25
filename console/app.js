@@ -97,6 +97,9 @@
     const canSend = ready && client.canPublish && !!frame && !loading && drawable.has(tab);
     const screenScene=["calendar","photo-calendar","course","todo","stock"].includes(tab);document.documentElement.dataset.screenScene=String(screenScene);
     $("publish").disabled = $("store-frame").disabled = !canSend || screenScene;
+    const directPhoto = tab === "image" && $("image-target").value === "full";
+    $("display-once").hidden = !directPhoto;
+    $("display-once").disabled = !directPhoto || !canSend;
     $("download").disabled = !frame || loading || (!drawable.has(tab) && !["calendar","photo-calendar"].includes(tab));
     $("image-file").disabled=busy || loading;
     for(const id of ["image-target","image-fit","photo-source","photo-slot","photo-fit","gallery-source","save-auto","auto-frequency"])$(id).disabled=busy || loading;
@@ -456,6 +459,11 @@
     }catch(error){throw Error(OMI18n.t("图片已保存到位置 ")+slot+OMI18n.t("；显示或自动换图未确认，请勿重复保存。 ")+error.message);}
   }
   bind("publish",()=>locked(()=>{if(["calendar","photo-calendar","course"].includes(tab))throw Error('请使用屏幕方案的应用按钮');return tab==="image"?savePicture(true):client.publish(snapshot(),progress);}),"");
+  bind("display-once", () => locked(async () => {
+    if (tab !== "image" || $("image-target").value !== "full") throw Error(OMI18n.t("请选择全屏图片。"));
+    await client.publish(snapshot(), progress);
+    result(OMI18n.t("屏幕已确认刷新。此图仅用于本次显示。"));
+  }), "");
   bind("store-frame",()=>locked(()=>{if(["calendar","photo-calendar","course"].includes(tab))throw Error('请使用屏幕方案的应用按钮');return savePicture();}),"");
   $("save-auto").addEventListener("change",update);
   bind("download", () => { snapshot(); const output=newCanvas();if(tab==="image" && $("image-target").value==="calendar")output.width=256;output.getContext("2d").drawImage($("preview"),0,0);return new Promise((resolve, reject) => output.toBlob(blob => { if (!blob) { reject(Error(OMI18n.t("无法导出画面"))); return; } download(`om6626-${tab}-${output.width}x300.png`, blob); resolve(); })); }, OMI18n.t("已导出 PNG。"));

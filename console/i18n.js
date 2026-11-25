@@ -1,5 +1,11 @@
 "use strict";
 const OMTranslations = {
+  "仅显示本次图片": "Display once",
+  "请选择全屏图片。": "Select a full-screen image.",
+  "屏幕已确认刷新。此图仅用于本次显示。": "Display refresh confirmed. This image was sent for one-time display.",
+  "固件报告内部图库可用槽位为 0。请保留当前固件，并核对 Flash 容量和分区表。": "The firmware reports zero internal gallery slots. Keep the current firmware and check the flash capacity and partition table.",
+  "内部图库未挂载。固件报告槽位数量为 ": "Internal gallery unavailable. The firmware reports this many slots: ",
+  "，读取或校验图库失败。本次没有保存图片。请保留图库数据以便检查。": ". Reading or validating the gallery failed. The image was not saved. Preserve the gallery for inspection.",
   "正在加载图库…": "Loading wallpapers…",
   "重试": "Retry",
   "诗词与名句": "Poetry and maxims",

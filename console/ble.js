@@ -465,9 +465,18 @@ class OMClient {
     if (this.reportedPayload < 44) throw Error(OMI18n.t("图库状态需要至少 44 字节通知容量，请使用支持 MTU 协商的连接"));
     const opcode = external ? 0x51 : 0x46, marker = external ? 0x73 : 0x53;
     const reply = await this.request(Uint8Array.of(opcode), b => b[0] === marker, OMI18n.t("读取图库"));
-    if (OMProtocol.sdkBoard(this.board) && reply[20] === 0) {
-      this.log(OMI18n.t(external?"外置图库":"内部图库")+" · "+OMI18n.t("槽位数量")+" "+reply[1]+" · "+OMI18n.t("未挂载"));
-      const error = Error(OMI18n.t(external?"外置 Flash 未检测到或布局不兼容，原数据已保留。请核对硬件和图库布局。":"图库未挂载，原有数据已保留。请先备份并核对存储布局；不要直接擦除设备。")); error.code = "DISPLAY_NOT_READY"; throw error;
+    if (OMProtocol.sdkBoard(this.board) && reply[20] === 0 && reply.length === 36 + reply[1] &&
+        OMProtocol.text(reply.subarray(2,6)) === "EIMG") {
+      const count = reply[1];
+      this.log(OMI18n.t(external?"外置图库":"内部图库")+" · "+OMI18n.t("槽位数量")+" "+count+" · "+OMI18n.t("未挂载"));
+      let reason;
+      if (external) reason = OMI18n.t("外置 Flash 未检测到或布局不兼容，原数据已保留。请核对硬件和图库布局。");
+      else if (count === 0) reason = OMI18n.t("固件报告内部图库可用槽位为 0。请保留当前固件，并核对 Flash 容量和分区表。");
+      else reason = OMI18n.t("内部图库未挂载。固件报告槽位数量为 ") + count +
+        OMI18n.t("，读取或校验图库失败。本次没有保存图片。请保留图库数据以便检查。");
+      const error = Error(reason);
+      error.code = "DISPLAY_NOT_READY";
+      throw error;
     }
     const state=OMProtocol.storage(reply, external);
     if(this.sdkCapabilities&512){
