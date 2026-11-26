@@ -65,6 +65,8 @@
       if(english)english.disabled=client.ready && !(client.sdkRevision>=6);
     }
     const busy = client.busy || uiBusy || schedulerRunning, ready = client.ready && !busy;
+    $("gallery-reset").hidden = !client.ready || external() || !client.galleryResetSupported;
+    $("gallery-reset").disabled = !ready || $("gallery-reset").hidden;
     for(const name of Object.keys(sectionViews))$("nav-"+name).disabled=busy;
     for(const button of $("feature-tabs").children)button.disabled=busy;
     $("stock-save").disabled=busy||stockFetching;
@@ -655,6 +657,23 @@
   }
   function slotSelected() { $("slot-remark").value = gallery?.slots.find(s => s.slot === Number($("gallery-slot").value))?.remark || ""; update(); }
   bind("gallery-read", readGallery, OMI18n.t("图库元数据已读取。"));
+  bind("gallery-reset", async () => {
+    if (external() || !client.ready || !client.galleryResetSupported) return;
+    const name = connectedName();
+    if (!window.confirm(name + "\n" + OMI18n.t("清空这块屏的内部图片和日历设置？激活授权会保留。"))) return;
+    gallery = null;
+    options("gallery-slot", []); options("photo-slot", []); $("gallery-list").replaceChildren();
+    $("gallery-state").textContent = OMI18n.t("初始化图库，结果待设备确认");
+    try {
+      gallery = await client.resetInternalGallery();
+    } catch (error) {
+      $("gallery-state").textContent = error.message;
+      throw error;
+    }
+    renderGallery();
+    const message = OMI18n.t("内部图库已初始化，日历设置已复位，可以传图。");
+    result(message); log(message);
+  }, "");
   bind("photo-gallery-read",()=>{ $("gallery-source").value=$("photo-source").value;return readGallery(); });
   $("photo-slot").addEventListener("change",()=>{update();preview();});
   $("photo-source").addEventListener("change",()=>{gallery=null;options("photo-slot",[]);$("photo-state").textContent=OMI18n.t("先读取图库并选择有效图片。");update();preview();});

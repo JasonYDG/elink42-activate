@@ -22,6 +22,7 @@ class OMClient {
     this.connectionGeneration = 0;
   }
   get canPublish() { return [2, 5].includes(this.config?.model); }
+  get galleryResetSupported() { return !!(this.sdkCapabilities & 2048) && OMProtocol.sdkBoard(this.board); }
   get deviceInfoSupported() { return OMProtocol.sdkBoard(this.board) ? !!(this.sdkCapabilities & 1) : this.firmwareRevision >= 32 && this.board?.name === OMProtocol.OTA_MARKER; }
   setTransfer(payload, delay) {
     OMProtocol.integer(payload, 20, 244, OMI18n.t("传输上限")); OMProtocol.integer(delay, 0, 100, OMI18n.t("包间隔"));
@@ -482,6 +483,31 @@ class OMClient {
       return mounted + " · " + OMI18n.t("读取诊断电压失败。") + " " + error.message;
     }
   }
+  async resetInternalGallery() {
+    if (!this.galleryResetSupported) throw Error(OMI18n.t("这版固件需要先有线升级才能初始化图库。"));
+    return this.operation(async () => {
+      if (!(this.reportedPayload >= 44)) await this.initialize();
+      if (!(this.reportedPayload >= 44)) throw Error(OMI18n.t("图库状态需要至少 44 字节通知容量，请使用支持 MTU 协商的连接"));
+      const seq = this.nextSequence();
+      const reply = await this.request(Uint8Array.of(0x24,0x47,0x52,0x53,0x54,seq),
+        b => b.length === 5 && b[0] === 0x6a && b[1] === seq, OMI18n.t("初始化图库，结果待设备确认"));
+      if (reply[2]) {
+        const voltage = (reply[3] | reply[4] << 8) / 1000;
+        const message = reply[2] === 1 ? OMI18n.t("屏幕正忙，请稍后初始化图库。") :
+          reply[2] === 2 ? (voltage ? OMI18n.t("初始化图库所需电压不足。") + " " + voltage.toFixed(3) + " V" :
+            OMI18n.t("未取得有效电压，请检查供电后重试。")) :
+          OMI18n.t("图库初始化未确认，请重新读取内部图库。");
+        const error = Error(message); error.code = "DISPLAY_NOT_READY"; throw error;
+      }
+      this.offlineRotation = null;
+      const state = await this.storageState(false);
+      if (!state.occupied || state.occupied.some(Boolean) || !await this.readCalendar() ||
+          this.config.alternate !== 2 || this.config.layout !== 0 || this.config.mode !== 0 ||
+          this.config.photoSlot !== 255 || this.config.photoSource !== 0)
+        throw Error(OMI18n.t("图库初始化未确认，请重新读取内部图库。"));
+      return {...state, slots:Array.from(state.occupied, (_,slot) => ({slot,valid:false,available:state.availableSlots.includes(slot)}))};
+    });
+  }
   async storageDirectory(external) {
     if (OMProtocol.sdkBoard(this.board) && external && !(this.sdkCapabilities&16)) {
       const error = Error(OMI18n.t("此屏未启用外置图库。")); error.code = "DISPLAY_NOT_READY"; throw error;
@@ -496,8 +522,11 @@ class OMClient {
       let reason;
       if (external) reason = OMI18n.t("外置 Flash 未检测到或布局不兼容，原数据已保留。请核对硬件和图库布局。");
       else if (count === 0) reason = OMI18n.t("固件报告内部图库可用槽位为 0。请保留当前固件，并核对 Flash 容量和分区表。");
+      else if (this.galleryResetSupported) reason = OMI18n.t("内部图库未挂载。可在「图库 → 设备图片」选择「初始化图库」。");
       else reason = OMI18n.t("内部图库未挂载。固件报告槽位数量为 ") + count +
         OMI18n.t("，固件未能读取或校验图库目录。请保留图库数据以便检查。");
+      if (!external && count && !this.galleryResetSupported && this.config?.model === 2)
+        reason += " " + OMI18n.t("如需清空图库，请先有线升级到 SSD1619 v3。");
       const error = Error(reason);
       error.code = "DISPLAY_NOT_READY";
       throw error;

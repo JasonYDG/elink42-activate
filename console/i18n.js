@@ -1,5 +1,16 @@
 "use strict";
 const OMTranslations = {
+  "初始化图库": "Initialize gallery",
+  "清空这块屏的内部图片和日历设置？激活授权会保留。": "Clear this display’s internal images and calendar settings? Its activation will be preserved.",
+  "这版固件需要先有线升级才能初始化图库。": "Install the wired firmware update to enable gallery initialization.",
+  "如需清空图库，请先有线升级到 SSD1619 v3。": "To clear the gallery, install the SSD1619 v3 wired update first.",
+  "初始化图库，结果待设备确认": "Initializing the gallery, awaiting device confirmation",
+  "屏幕正忙，请稍后初始化图库。": "The display is busy. Try initializing the gallery later.",
+  "初始化图库所需电压不足。": "Battery voltage is too low to initialize the gallery.",
+  "未取得有效电压，请检查供电后重试。": "Voltage could not be measured. Check the power supply and try again.",
+  "图库初始化未确认，请重新读取内部图库。": "Gallery initialization could not be verified. Read the internal gallery again.",
+  "内部图库已初始化，日历设置已复位，可以传图。": "The internal gallery is ready and calendar settings have been reset. You can upload an image.",
+  "内部图库未挂载。可在「图库 → 设备图片」选择「初始化图库」。": "The internal gallery is unavailable. Choose Initialize gallery under Gallery → Saved images.",
   "仅显示本次图片": "Display once",
   "请选择全屏图片。": "Select a full-screen image.",
   "屏幕已确认刷新。此图仅用于本次显示。": "Display refresh confirmed. This image was sent for one-time display.",
