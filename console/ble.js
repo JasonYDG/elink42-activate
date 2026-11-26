@@ -223,12 +223,12 @@ class OMClient {
     }
   }
   nextSequence() { return this.commandSequence = this.commandSequence % 255 + 1; }
-  async readDeviceInfo() {
+  async readDeviceInfo(timeout = 65000) {
     this.deviceInfo = null;
     if (!this.deviceInfoSupported) return null;
     const sequence = this.nextSequence();
     const reply = await this.request(Uint8Array.of(0x24, 0x44, sequence),
-      b => b[0] === 0x59 && b[1] === sequence, OMI18n.t("读取电压和 MAC 地址"), 65000);
+      b => b[0] === 0x59 && b[1] === sequence, OMI18n.t("读取电压和 MAC 地址"), timeout);
     if (reply.length !== 12 || reply[2] !== this.config.model || reply[3] > 8)
       throw Error(OMI18n.t("设备信息回执无效"));
     const mv = reply[4] | reply[5] << 8;
@@ -444,7 +444,13 @@ class OMClient {
         b=>(b.length===7 && b[0]===0x55 && b[2]===0x4A) || (OMProtocol.sdkBoard(this.board) && b[0]===0x51 && b[1]===0x24 && b[2]===presentationSequence),OMI18n.t("Read calendar presentation"));
       if(presentation[0]===0x51){
         this.log("0x24/0x4A ← "+Array.from(presentation,b=>b.toString(16).padStart(2,"0")).join(" "));
-        const error=Error(OMI18n.t("日历设置未保存。请在「设备图片」读取内部图库，查看槽位和状态。"));error.code="DISPLAY_NOT_READY";throw error;
+        const storageError = presentation.length === 6 && presentation[3] === 0xA8 &&
+          presentation[4] === 8 && presentation[5] === 0;
+        const message = storageError ? await this.calendarStorageFailure() :
+          OMI18n.t("设备未确认日历设置。请查看操作记录中的原始回执。");
+        const error = Error(message);
+        error.code = "DISPLAY_NOT_READY";
+        throw error;
       }
       if(presentation[1]!==option || presentation[3]!==country || (photo && (presentation[5]!==slot || presentation[6]!==Number(external))))throw Error(OMI18n.t("Calendar presentation readback mismatch"));
       this.log(OMI18n.t("日历样式已读回，开始刷新"));
@@ -458,7 +464,25 @@ class OMClient {
       if (photo) this.log(OMI18n.msg`图片日历提交及设备回执耗时 ${((performance.now() - startedAt) / 1000).toFixed(1)} s`);
     });
   }
-  async storageState(external) {
+  async calendarStorageFailure() {
+    const reason = OMI18n.t("日历设置未保存（存储错误 0x08）。");
+    let state;
+    try {
+      state = await this.storageDirectory(false);
+    } catch (error) {
+      return reason + " " + error.message;
+    }
+    const mounted = reason + " " + OMI18n.t("内部图库已挂载，槽位数量为 ") + state.count;
+    if (!this.deviceInfoSupported) return mounted;
+    try {
+      const info = await this.readDeviceInfo(3500);
+      return mounted + " · " + (info.millivolts === null ? OMI18n.t("诊断时未取得有效电压。") :
+        OMI18n.t("诊断时电压 ") + (info.millivolts / 1000).toFixed(2) + " V");
+    } catch (error) {
+      return mounted + " · " + OMI18n.t("读取诊断电压失败。") + " " + error.message;
+    }
+  }
+  async storageDirectory(external) {
     if (OMProtocol.sdkBoard(this.board) && external && !(this.sdkCapabilities&16)) {
       const error = Error(OMI18n.t("此屏未启用外置图库。")); error.code = "DISPLAY_NOT_READY"; throw error;
     }
@@ -473,12 +497,15 @@ class OMClient {
       if (external) reason = OMI18n.t("外置 Flash 未检测到或布局不兼容，原数据已保留。请核对硬件和图库布局。");
       else if (count === 0) reason = OMI18n.t("固件报告内部图库可用槽位为 0。请保留当前固件，并核对 Flash 容量和分区表。");
       else reason = OMI18n.t("内部图库未挂载。固件报告槽位数量为 ") + count +
-        OMI18n.t("，读取或校验图库失败。本次没有保存图片。请保留图库数据以便检查。");
+        OMI18n.t("，固件未能读取或校验图库目录。请保留图库数据以便检查。");
       const error = Error(reason);
       error.code = "DISPLAY_NOT_READY";
       throw error;
     }
-    const state=OMProtocol.storage(reply, external);
+    return OMProtocol.storage(reply, external);
+  }
+  async storageState(external) {
+    const state = await this.storageDirectory(external);
     if(this.sdkCapabilities&512){
       const seq=this.nextSequence(),layout=await this.request(Uint8Array.of(0x24,0x47,Number(external),seq),b=>b[0]===0x5F&&b[1]===seq,"读取照片区和应用区");
       return OMProtocol.storageLayout(layout,state);
