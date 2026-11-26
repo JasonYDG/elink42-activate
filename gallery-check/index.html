@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>ELINK42 图库回读检查</title>
+<style>
+  :root{color-scheme:light dark;font:16px/1.65 "Microsoft YaHei UI",system-ui,sans-serif}
+  body{max-width:43rem;margin:8vh auto;padding:0 1.4rem}
+  h1{font-size:1.8rem;line-height:1.3}label{display:block;font-weight:600}
+  input{display:block;margin:.65rem 0 1.6rem;font:inherit;max-width:100%}
+  pre{white-space:pre-wrap;overflow-wrap:anywhere;border-inline-start:3px solid #a36a46;padding:.5rem 1rem;font:inherit}
+</style>
+<main>
+  <h1>图库回读检查</h1>
+  <p>选择从这块屏读回的文件。检查在本机完成，可把下方文字发给发布者。</p>
+  <label for="dump">选择 Flash 回读文件</label>
+  <input type="file" id="dump" accept=".bin,application/octet-stream">
+  <details><summary>支持哪些文件？</summary>
+    <p>支持 1 MiB 原始整片回读、从 Flash 偏移 0x40000 开始的 8 KiB 图库目录，或从同一偏移开始、长度为 0x70000 的图库区域。J-Link 对应的起始地址为 0x00440000。请使用从设备读出的文件。</p>
+  </details>
+  <pre id="report" aria-live="polite">等待选择文件。</pre>
+</main>
+<script>
+"use strict";
+const directoryBase = 0x40000, imageBase = 0x48000, galleryEnd = 0xb0000, sector = 4096;
+const hex = n => "0x" + n.toString(16).toUpperCase();
+const blank = data => data.every(b => b === 255);
+const view = bytes => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const b of bytes) {
+    crc ^= b;
+    for (let i=0; i<8; i++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+  }
+  return (~crc) >>> 0;
+}
+
+function describeBank(bytes, offset) {
+  const prefix = hex(offset) + "　";
+  if (blank(bytes)) return prefix + "目录扇区全为 FF";
+  const v = view(bytes), signature = v.getUint32(0,true);
+  if (signature === 0x474d4945) {
+    const matches = v.getUint16(4,true) === 400 && v.getUint16(6,true) === 300 &&
+      v.getUint32(10,true) === 30000 && v.getUint32(14,true) === 32768;
+    return prefix + (matches ? "检测到旧版 EIMG 图库头，图幅 400 × 300，目录声明 " + bytes[18] + " 个位置"
+      : "检测到 EIMG 标记，头部参数与已知布局不符");
+  }
+  if (signature !== 0x53323445) return prefix + "含其他数据，无法识别目录格式";
+  // The v2 internal directory stores 21 entries even on boards with fewer slots.
+  const footer = 8 + 268 + 21 * 72;
+  const crcOK = v.getUint32(footer,true) === crc32(bytes.subarray(0,footer));
+  const committed = v.getUint32(footer+4,true) === 0x214b4f45;
+  const panel = ({2:"三色",5:"四色"})[bytes[8]] || "未知屏型";
+  return prefix + "v2 目录，" + panel + "，代次 " + v.getUint32(4,true) +
+    "，CRC " + (crcOK ? "匹配" : "不匹配") + "，提交标记" + (committed ? "完整" : "异常");
+}
+
+async function inspect(file) {
+  const read = async (start, end) => new Uint8Array(await file.slice(start,end).arrayBuffer());
+  let start, length;
+  if (file.size === 0x100000) {
+    const hasMbr = b => b[510] === 0x55 && b[511] === 0xaa && b[0x182] === 0x60 &&
+      view(b).getUint32(0x186,true) === 4;
+    if (!hasMbr(await read(0x1000,0x1200)) && !hasMbr(await read(0x2000,0x2200)))
+      throw Error("无法确认这是配套芯片的原始整片回读。请核对读出起始地址与文件格式。");
+    start = directoryBase;
+    length = galleryEnd - directoryBase;
+  } else if (file.size === 2 * sector || file.size === galleryEnd - directoryBase) {
+    start = 0;
+    length = file.size;
+  } else {
+    throw Error("文件长度不符合支持的回读范围。请核对是否选中了设备的回读文件。");
+  }
+  const data = await read(start,start+length);
+  const lines = ["ELINK42 内部图库检查",
+    describeBank(data.subarray(0,sector), directoryBase),
+    describeBank(data.subarray(sector,2*sector), directoryBase+sector)];
+  if (length === 2 * sector) {
+    lines.push("本次仅读取了两个目录扇区。");
+  } else {
+    const occupied = [];
+    for (let address=imageBase; address<galleryEnd; address+=0x8000) {
+      const offset = address-directoryBase;
+      if (!blank(data.subarray(offset,offset+0x8000))) occupied.push(hex(address));
+    }
+    lines.push("目录之后至图片区之前：" + (blank(data.subarray(2*sector,imageBase-directoryBase)) ? "全为 FF" : "含非 FF 数据"));
+    lines.push("含非 FF 数据的 32 KiB 区块起点：" + (occupied.join("、") || "无"));
+    if (occupied.length) lines.push("其中可能有厂商保留区。区块非空不能用来计算照片数量。");
+  }
+  return lines.join("\n");
+}
+
+const picker = document.querySelector("#dump"), report = document.querySelector("#report");
+picker.addEventListener("change", async () => {
+  const file = picker.files[0];
+  if (!file) { report.textContent = "等待选择文件。"; return; }
+  report.textContent = "正在检查图库目录…";
+  let message;
+  try { message = await inspect(file); } catch (error) { message = error.message; }
+  if (picker.files[0] === file) report.textContent = message;
+});
+</script>
+</html>
