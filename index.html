@@ -9,9 +9,10 @@
   <title>ELINK42 · 屏幕激活</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="portal.css?v=36a05bcedac6">
-  <script src="activation.js?v=31120ac9d671" defer></script>
+  <link rel="stylesheet" href="battery.css?h=c3fd385c485c"><script defer src="battery.js?h=796f8facaf11"></script>
+<script src="activation.js?v=31120ac9d671" defer></script>
   <script src="console/protocol.js" defer></script>
-  <script src="portal.js?v=ec9e733bd6da" defer></script>
+  <script src="portal.js?h=6f7667b72ef5" defer></script>
 </head>
 <body>
   <header><div class="wrap bar"><a class="brand" href="./">ELINK<span>42</span></a>
@@ -34,7 +35,7 @@
         <dl><div><dt>蓝牙状态</dt><dd id="connection">未连接</dd></div>
           <div><dt>屏型</dt><dd id="model">—</dd></div>
           <div><dt>设备 MAC</dt><dd id="mac">—</dd></div>
-          <div><dt>板载电压</dt><dd id="voltage">—</dd></div>
+          <div><dt>板载电压</dt><dd><span id="voltage">—</span> <span id="activation-meter" class="battery-meter" hidden><span class="rail"><meter id="activation-meter-rail" min="2200" max="3200" value="2200" aria-label="Battery voltage (mV)"></meter></span><span id="activation-meter-label"></span></span></dd></div>
           <div><dt>设备授权</dt><dd id="state">待连接</dd></div></dl>
         <div class="actions"><button id="connect" type="button" class="primary" disabled>连接屏幕</button>
           <button id="disconnect" type="button" hidden>断开</button>

@@ -39,6 +39,7 @@
     $("state").textContent = names[session?.state] || (!connected && nextStep ? "上次连接已确认激活" : "待连接");
     const power = session?.power;
     $("voltage").textContent = power ? (power.mv ? volts(power.mv) : "等待读数") + "（激活需 " + volts(power.minimum) + "）" : (connected && session.state ? "此固件未上报" : "—");
+    OMBattery.update("activation-meter",connected ? power?.mv : null,session?.request?.model || ({2800:2,2900:5})[power?.minimum]);
     const canActivate = connected && !busy && ["pending", "rejected", "lowVoltage", "noVoltage"].includes(session.state) && !!session.request;
     $("export").disabled = !canActivate;
     $("import").disabled = !canActivate;
@@ -92,7 +93,9 @@
       automaticStart(current);
       return;
     }
-    const request = state === "verifying" ? null : await ELActivation.readRequest(current.service);
+    const waitingForPower = ["lowVoltage","noVoltage"].includes(state) &&
+      (!current.power?.mv || current.power.mv < current.power.minimum);
+    const request = state === "verifying" || waitingForPower ? null : await ELActivation.readRequest(current.service);
     current.controller.signal.throwIfAborted();
     current.state = state; current.request = request;
     if (state === "active" && !current.power?.controlBoot) {

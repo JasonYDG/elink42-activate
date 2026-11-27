@@ -59,7 +59,9 @@ const SecureUpdate = (() => {
     if(!pkg || pkg.model!==client.config?.model || !(client.sdkCapabilities&0x8000))throw Error("升级包与已连接的加密屏不匹配。");
     const device=client.device, service=await device.gatt.getPrimaryService(ELActivation.SERVICE);
     const power=await ELActivation.readPower(service);
-    if(!power?.mv || power.mv<power.minimum)throw Error("电压不足，当前 "+((power?.mv||0)/1000).toFixed(2)+" V。");
+    if(!Number.isInteger(power?.mv) || power.mv<=0)throw Error("未取得有效的板载电压，请重新读取后升级。");
+    const minimum=Math.max(pkg.model===5?2900:2800,power.minimum||0);
+    if(power.mv<minimum)throw Error("电压不足，实测 "+(power.mv/1000).toFixed(3)+" V，升级需要 "+(minimum/1000).toFixed(2)+" V。");
     const app=await service.getCharacteristic(characteristicId), before=await status(app);
     if(before.mode!==0 || before.model!==pkg.model || before.version>pkg.version)throw Error("本屏无法安装所选版本。");
     if(before.version===pkg.version && before.digest===pkg.digest){

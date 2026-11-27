@@ -1,5 +1,7 @@
 "use strict";
 const OMTranslations = {
+  "已达刷机安全线":"Meets firmware write threshold", "低于刷机安全线":"Below firmware write threshold",
+  "电压低于刷机安全线。请在电压恢复后升级。":"Voltage is below the firmware write threshold. Wait for adequate power before updating.",
   "预览倍率":"Preview zoom",
   "自动换日使用设备时钟。":"Automatic date changes follow the device clock.",
   "SDK 30 已撤回，请选择 SDK 31 或后续版本。": "SDK 30 has been withdrawn. Select SDK 31 or later.",

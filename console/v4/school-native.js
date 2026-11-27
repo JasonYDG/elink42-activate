@@ -8,7 +8,7 @@ const OMSchool = (() => {
   const ordinal = value => {const d=CourseTable.dateValue(value);return Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/86400000;};
   async function engine() {
     if (!enginePromise) enginePromise=(async()=>{
-      const url=new URL("sdk-preview.wasm",script);url.search=script.search;
+      const url=new URL("sdk-preview.wasm",script);url.search="?h=bbfe29fda7c4";
       const response=await fetch(url);if(!response.ok)throw Error("无法加载固件课表绘图模块");
       return (await WebAssembly.instantiate(await response.arrayBuffer(),{})).instance.exports;
     })().catch(error=>{enginePromise=null;throw error;});

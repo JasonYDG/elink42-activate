@@ -6,7 +6,7 @@ const OMSdkPreview = (() => {
 
   async function load(revision) {
     const asset = new URL("sdk-preview.wasm", script);
-    asset.search = script.search || "?calendar=12";
+    asset.search = "?h=bbfe29fda7c4";
     const response = await fetch(asset);
     if (!response.ok) throw Error(OMI18n.t("无法加载日历预览"));
     const {instance} = await WebAssembly.instantiate(await response.arrayBuffer(), {});

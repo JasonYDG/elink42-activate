@@ -141,21 +141,23 @@
       if (client.ready) window.sessionStorage?.setItem("elink42-course-device-v1", JSON.stringify({deviceName: connectedName(), millivolts: info?.millivolts ?? null}));
       else window.sessionStorage?.removeItem("elink42-course-device-v1");
     } catch (_) { /* Optional editor handoff must not interrupt device queries when session storage is unavailable. */ }
+    const model=client.config?.model;
+    const below=info?.millivolts>0 && info.millivolts<OMBattery.limits(model).write;
+    for(const id of ["summary-meter","detail-meter"])OMBattery.update(id,info?.millivolts,model);
     $("device-mac").textContent = info?.mac || "—";
-    $("device-voltage").textContent = info?.millivolts == null ? "—" : (Math.round(info.millivolts / 10) / 100).toFixed(2) + " V";
-    $("device-voltage").classList.toggle("low-voltage", info?.millivolts != null && info.millivolts < 2800);
+    $("device-voltage").textContent = !info?.millivolts ? "—" : (info.millivolts / 1000).toFixed(3) + " V";
+    $("device-voltage").classList.toggle("low-voltage", below);
     $("device-info-hint").textContent = OMI18n.t(!client.ready ? "连接后读取设备电压和 MAC。" :
       !client.deviceInfoSupported ? "设备信息与初始页需要 v32 或更新固件" :
       !info || info.millivolts == null ? "电压尚未读出，可点击刷新设备信息。" :
-      info.millivolts < 2700 ? "电量不足：停止新刷新，蓝牙与查询仍可使用。" :
-      info.millivolts < 2800 ? "电池电量低，仍可刷屏；请准备更换电池。" : "电压为最近一次采样，点击刷新可重新读取。");
+      below ? "电压低于刷机安全线。请在电压恢复后升级。" : "电压为最近一次采样，点击刷新可重新读取。");
     for (const id of ["device-info-refresh", "device-home"]) $(id).disabled = !ready || !client.deviceInfoSupported || client.otaActive;
     $("firmware-state").textContent = client.ready && OMProtocol.sdkBoard(client.board) ? `SDK ${client.sdkRevision}` : client.ready && client.firmwareRevision ? `v${client.firmwareRevision}` +
       OMI18n.t(" · 网页内置 v") + bundledFirmwareRevision + (client.firmwareRevision < bundledFirmwareRevision ? OMI18n.t(" · 发现内置更新") : "") : OMI18n.t("待核对");
     $("screen-model").textContent = client.ready ? client.config.model === 5 ? OMI18n.t("JD79668 · 四色") : OMI18n.t("SSD1619 · 黑白红") : OMI18n.t("三色 / 四色 · 连接后识别");
     $("device-summary").hidden = !client.ready;
-    $("device-summary").textContent = client.ready ? `OM6626B · ${$("screen-model").textContent.split(" · ")[0]} · ${$("firmware-state").textContent.split(" · ")[0]} · ${info?.millivolts == null ? OMI18n.t("电压尚未读出") : $("device-voltage").textContent}` : "";
-    $("device-summary").classList.toggle("low-voltage", info?.millivolts != null && info.millivolts < 2800);
+    $("device-summary").textContent = client.ready ? `OM6626B · ${$("screen-model").textContent.split(" · ")[0]} · ${$("firmware-state").textContent.split(" · ")[0]} · ${!info?.millivolts ? OMI18n.t("电压尚未读出") : $("device-voltage").textContent}` : "";
+    $("device-summary").classList.toggle("low-voltage", below);
     $("mtu-state").textContent = OMI18n.msg`${client.reportedPayload || 20} B ATT / ${client.payload} B 当前发送`;
     $("clock-capability").textContent = client.ready && OMProtocol.sdkBoard(client.board) ? OMI18n.t("独立固件的三色和四色时钟均使用全刷，请先确认接受频繁刷新。") : client.ready ? client.config.model === 5 ?
       OMI18n.t("JD79668：原驱动局刷回调为空，只能启用原版全刷时钟；不建议长期开启。") :
@@ -228,7 +230,7 @@
             revision:client.ready?client.sdkRevision:undefined,flags:(style<<3)|(photo?1:0)|($("calendar-language").value==="zh"?2:0),millivolts:info?.millivolts,deviceName:name});
           if(token!==previewToken)return;
           if(photo)OMScreen.paintBackground(canvas,chosenModel);
-        }else OMRender.calendar(canvas,{code:region.code,date,language:$("calendar-language").value,photo:tab==="photo-calendar",bitmap:null,slot:$("photo-slot").value,model:chosenModel});
+        }else OMRender.calendar(canvas,{code:region.code,date,language:$("calendar-language").value,photo:tab==="photo-calendar",bitmap:null,slot:$("photo-slot").value,millivolts:client.deviceInfo?.millivolts,model:chosenModel});
         frame=OMProtocol.planes(canvas.getContext("2d").getImageData(0,0,400,300).data,false,chosenModel);
         $("preview").getContext("2d").drawImage(canvas,0,0);
         $("preview-label").textContent=OMI18n.t(tab==="calendar"?"标准日历":"图片日历")+" · "+OMI18n.t(region.zh)+" · 400 × 300"+(sdkLayout && tab==="photo-calendar" && !OMScreen.current().background?" · "+OMI18n.t("设备照片未读回，左侧留白"):"");

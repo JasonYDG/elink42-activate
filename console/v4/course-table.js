@@ -177,9 +177,9 @@ const CourseTable = (() => {
       }
       text(name, 16, 284, size);
       if (pages > 1) text(`${page + 1}/${pages}`, 286, 284, 10, {align: "right", numeric: true});
-      // Match the native electrical outline; no fill bars or inferred battery percentage.
-      rect(321, 280, 11, 1); rect(321, 287, 11, 1); rect(321, 281, 1, 6); rect(331, 281, 1, 6); rect(332, 282, 2, 4);
-      text(info.voltage, 384, 284, type.meta, {align: "right", numeric: true, color: info.millivolts !== null && info.millivolts < 2800 ? inks.red : inks.black});
+      const model=panel==="four"?5:2;
+      OMBattery.icon(ctx,321,280,11,8,info.millivolts,model);
+      text(info.voltage, 384, 284, type.meta, {align: "right", numeric: true, color: info.millivolts !== null && info.millivolts < OMBattery.limits(model).write ? inks.red : inks.black});
       return info;
     }
     function finish() {

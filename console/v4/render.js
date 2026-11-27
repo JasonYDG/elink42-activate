@@ -50,7 +50,7 @@ const OMRender = (() => {
     ctx.fillStyle=COLORS.red;
     for(const d of digits){for(let i=0;i<7;i++)if(bits[d]&(1<<i)){const [dx,dy,w,h]=rects[i];ctx.fillRect(x+dx-(d===1?34:0),54+dy,w,h);}x+=width(d)+8;}
   }
-  function calendar(canvas,{code,date,language="zh",photo=false,bitmap=null,slot="",model=5}){
+  function calendar(canvas,{code,date,language="zh",photo=false,bitmap=null,slot="",model=5,millivolts=null}){
     const block=(...args)=>textBlock(...args,14);
     const ctx=start(canvas), C=OMCalendar, region=C.region(code), zh=language==="zh", left=photo?266:12, width=photo?124:376;
     const center=(text,cx,y,w,h,size)=>{ctx.font=`${size}px ${FONT}`;block(ctx,text,cx-ctx.measureText(text).width/2,y,w,h,size);};
@@ -66,8 +66,7 @@ const OMRender = (() => {
       if(code==="CN"){const a=C.almanac(date),offset=Math.min(86,ctx.measureText(heading).width)+4;if(a){ctx.font=`12px ${FONT}`;ctx.fillText(a.zodiac[zh?1:0],left+offset,28,width-offset);}}
     }else block(ctx,`${date.getFullYear()} / ${String(date.getMonth()+1).padStart(2,"0")}`,left,5,180,27,24);
     ctx.fillStyle=COLORS.black;
-    // Preview has no measured battery voltage; only the native device supplies it.
-    ctx.strokeRect(370,photo?38:5,18,9);ctx.fillRect(388,photo?41:8,2,3);
+    OMBattery.icon(ctx,370,photo?38:5,18,9,millivolts,model);
     if(photo)block(ctx,region[zh?"zh":"en"],left,38,88,14,11);
     else block(ctx,region[zh?"zh":"en"],290,19,100,14,11);
     block(ctx,zh?`第${C.week(date)}周`:`Week ${C.week(date)}`,photo?left:195,photo?116:18,photo?width:90,14,12);
@@ -215,8 +214,8 @@ const OMRender = (() => {
     ctx.fillStyle=COLORS.black;if(!quotes.length)text("请先导入行情",14,112,2);
     ctx.fillRect(12,277,376,1);text(font.fit(options.deviceName||"设备未连接",280),11,283);
     const voltage=options.millivolts?`${(Math.round(options.millivolts/10)/100).toFixed(2)} V`:"电量未读取",battery=388-font.measure(voltage)-16;
-    ctx.fillRect(battery,286,11,1);ctx.fillRect(battery,292,11,1);ctx.fillRect(battery,287,1,5);ctx.fillRect(battery+10,287,1,5);ctx.fillRect(battery+11,288,2,3);
-    ctx.fillStyle=options.millivolts&&options.millivolts<2800?COLORS.red:COLORS.black;text(voltage,388,283,1,"right");
+    OMBattery.icon(ctx,battery,286,11,7,options.millivolts,options.model);
+    ctx.fillStyle=options.millivolts&&options.millivolts<OMBattery.limits(options.model).write?COLORS.red:COLORS.black;text(voltage,388,283,1,"right");
   }
   return {todo, todos, image, calendar, course, template, textBlock,reminderCalendar,stockCalendar};
 })();

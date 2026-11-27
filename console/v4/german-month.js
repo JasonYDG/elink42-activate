@@ -139,8 +139,8 @@ const OMGermanMonth = (() => {
     }
     rect(9,277,382,1,black);status(deviceName||"--",11,293,black);
     const volts=millivolts?(Math.round(millivolts/10)/100).toFixed(2)+" V":"-- V",vx=392-volts.length*8;
-    outline(vx-19,284,11,8,black);rect(vx-8,286,2,4,black);
-    status(volts,vx,293,millivolts&&millivolts<2800?red:black);
+    OMBattery.icon(ctx,vx-19,284,11,8,millivolts,model);
+    status(volts,vx,293,millivolts&&millivolts<OMBattery.limits(model).write?red:black);
   }
   return {uses,recordParts,render};
 })();

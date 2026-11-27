@@ -1,0 +1,9 @@
+.battery-meter:not([hidden]) {display:inline-flex;flex-wrap:wrap;align-items:center;gap:.4rem .65rem;font-size:.78rem;line-height:1.3}
+.battery-meter .rail {position:relative;display:inline-flex;align-items:center;width:5.5rem;height:1rem}
+.battery-meter .rail::after {content:"";position:absolute;left:60%;top:1px;bottom:1px;border-left:2px solid currentColor;pointer-events:none}
+.battery-meter.four-color .rail::after {left:66.667%}
+.battery-meter meter {width:100%;height:.7rem;border:0;background:none}
+.battery-meter meter::-webkit-meter-bar {background:#e0e4df;border:0;border-radius:3px}
+.battery-meter meter::-webkit-meter-optimum-value {background:#387357}
+.battery-meter meter::-webkit-meter-suboptimum-value,.battery-meter meter::-webkit-meter-even-less-good-value {background:#a44c21}
+.battery-meter.below-reserve {color:#944420}
