@@ -66,15 +66,19 @@ const SecureUpdate = (() => {
       progress(100,"已核对，本屏已经运行所选固件。");
       return "installed";
     }
-    let payload=Math.min(client.reportedPayload || 180,244)-5;
     let ch,committed=false;
     try {
       progress(0,"正在进入无线升级模式…");
       await writeForReboot(device,app,new TextEncoder().encode("E42RX004"));
       ({ch}=await afterReboot(device,1,pkg.model));
-      let offset=0, shown=-1, retryAt=-1;
+      // Receiver mode negotiates its own MTU after reboot. Its characteristic
+      // supports a 244-byte write, including the 5-byte command/offset header.
+      const sizes=[239,175,123,91,59,27,15];
+      let sizeIndex=0, retried=false, probeAt=Infinity;
+      let offset=0, shown=-1, displayedSize=0, lastUpdate=0;
+      const started=Date.now();
       while(offset<pkg.bytes.length) {
-        const count=Math.min(payload,pkg.bytes.length-offset), packet=new Uint8Array(5+count);
+        const count=Math.min(sizes[sizeIndex],pkg.bytes.length-offset), packet=new Uint8Array(5+count);
         packet[0]=0xa1;new DataView(packet.buffer).setUint32(1,offset,true);packet.set(pkg.bytes.subarray(offset,offset+count),5);
         try { await ch.writeValueWithResponse(packet); }
         catch(error) {
@@ -84,14 +88,40 @@ const SecureUpdate = (() => {
             ({ch,state:ack}=await afterReboot(device,1,pkg.model));
           }else ack=await status(ch);
           if(ack.mode!==1 || ack.model!==pkg.model)throw Error("屏幕已退出升级模式，请重新开始。");
-          if(ack.offset===offset && payload>15){payload=15;continue;}
-          if(ack.offset===offset && retryAt!==offset){retryAt=offset;continue;}
-          if(ack.offset!==offset+count)throw error;
+          if(ack.offset===offset){
+            if(!retried){retried=true;continue;}
+            // A size change only helps if it makes the next write smaller.
+            const smaller=sizes.findIndex(n=>n<count);
+            if(smaller<0)throw error;
+            sizeIndex=smaller;
+            probeAt=offset+8192;
+            retried=false;
+            continue;
+          }
+          if(ack.offset!==offset+count)throw Error("屏幕接收位置与发送记录不一致，已停止传输。");
         }
+        retried=false;
         offset+=count;
         const percent=Math.floor(offset*97/pkg.bytes.length);
-        if(percent!==shown){shown=percent;progress(percent,"正在传输加密固件 "+percent+"%");}
+        const now=Date.now();
+        if(percent!==shown || count!==displayedSize || now-lastUpdate>=1500){
+          let label="正在传输加密固件 "+percent+"% · "+count+" B/包";
+          if(now-started>=1000){
+            const rate=offset*1000/(now-started);
+            const seconds=Math.ceil((pkg.bytes.length-offset)/rate);
+            label+=" · 平均 "+(rate/1024).toFixed(2)+" KiB/s · 传输剩余约 "+Math.floor(seconds/60)+"分"+seconds%60+"秒";
+          }
+          progress(percent,label);
+          if(count!==displayedSize && offset<pkg.bytes.length)client.log?.("OTA 已确认 "+count+" B/包");
+          shown=percent;displayedSize=count;lastUpdate=now;
+        }
+        if(sizeIndex>0 && offset>=probeAt){
+          sizeIndex--;
+          probeAt=offset+2048;
+        }
       }
+      const elapsed=Math.max(1,Date.now()-started);
+      client.log?.("OTA 已发送 "+offset+" 字节，传输用时 "+(elapsed/1000).toFixed(1)+" 秒，平均 "+(offset*1000/1024/elapsed).toFixed(2)+" KiB/s");
       let received;
       try {received=await status(ch);}
       catch(error) {
