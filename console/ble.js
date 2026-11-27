@@ -22,7 +22,7 @@ class OMClient {
     this.connectionGeneration = 0;
   }
   get canPublish() { return [2, 5].includes(this.config?.model); }
-  get galleryResetSupported() { return !!(this.sdkCapabilities & 2048) && OMProtocol.sdkBoard(this.board); }
+  get galleryResetSupported() { return !!(this.sdkCapabilities & 2048) && !(this.sdkCapabilities & 0x8000) && OMProtocol.sdkBoard(this.board); }
   get deviceInfoSupported() { return OMProtocol.sdkBoard(this.board) ? !!(this.sdkCapabilities & 1) : this.firmwareRevision >= 32 && this.board?.name === OMProtocol.OTA_MARKER; }
   setTransfer(payload, delay) {
     OMProtocol.integer(payload, 20, 244, OMI18n.t("传输上限")); OMProtocol.integer(delay, 0, 100, OMI18n.t("包间隔"));
