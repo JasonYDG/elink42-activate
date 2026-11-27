@@ -910,7 +910,7 @@
   $("ui-language").addEventListener("change",()=>OMI18n.setLanguage($("ui-language").value));
   OMI18n.apply();syncCalendar(false,false);
   renderLibrary();
-  OMScreen.init({read:screenData,save:data=>store.commit(data),show:type=>{
+  OMScreen.init({read:screenData,save:(data,verify)=>store.commit(data,verify),show:type=>{
     $("school-view").value=type==="day"?"day":"week";
     selectTab($(type==="photo"?"tab-photo-calendar":type==="reminder"?"tab-todo":type==="stock"?"tab-stock":["day","week"].includes(type)?"tab-course":"tab-calendar"));
   },regionChanged:selectRegion,preview,deviceSettings:()=>selectTab($("tab-settings")),download:jsonDownload,refresh:()=>{if(!uiBusy&&!client.busy){screenData();refreshLists();}},apply:p=>action(()=>locked(()=>applyScreen(p)),"")});

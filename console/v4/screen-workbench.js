@@ -52,8 +52,8 @@ const OMScreen = (() => {
     for(const c of JSON.stringify([clean,data.courses,data.exams||[],data.examDays||{},data.todos,data.stocks,rendering,...(p.content==="calendar" && data.activeRegion ? [data.activeRegion,data.regionProfiles?.[data.activeRegion.slice(7)]] : [])]))h=Math.imul(h^c.charCodeAt(0),16777619)>>>0;
     return h.toString(16);
   }
-  function persist(){
-    if(!hooks)return;const data=OMFeatures.clone(hooks.read());data.screenProfile=capture();data.settings.calendarCountry=data.screenProfile.country;data.settings.calendarLanguage=data.screenProfile.language;hooks.save(data);status();
+  function persist(verify=false){
+    if(!hooks)return;const data=OMFeatures.clone(hooks.read());data.screenProfile=capture();data.settings.calendarCountry=data.screenProfile.country;data.settings.calendarLanguage=data.screenProfile.language;hooks.save(data,verify);status();
   }
   function fields(p,previewDate=p.date){
     $("screen-content").value=p.content;$("screen-update").value=p.update;$("calendar-layout").value=String(p.country);$("calendar-language").value=p.language;
@@ -112,8 +112,7 @@ const OMScreen = (() => {
   }
   function saveBeforeOTA(){
     if(tableDirty)throw Error('请先保存课表表格，再进行升级');
-    persist();
-    if(localStorage.getItem('om6626-workspace-v1')!==JSON.stringify(hooks.read()))throw Error('屏幕方案未能保存到本机，升级尚未开始。请先导出方案。');
+    persist(true);
   }
   async function importPlan(file){
     if(!file || file.size>6000000)throw Error("请选择不超过6MB的方案 JSON 文件");
@@ -165,7 +164,7 @@ const OMScreen = (() => {
   }
   function init(callbacks){
     hooks=callbacks;
-    $("todo-title").addEventListener("input",persist);
+    $("todo-title").addEventListener("input",()=>persist());
     for(const id of ["todo-mode","todo-selected"])$(id).addEventListener("change",()=>{persist();hooks.preview();});
     $("screen-content").addEventListener("change",()=>{if(["calendar","photo"].includes($("screen-content").value))$("screen-update").value="auto";const p=capture();fields(p);persist();hooks.show(p.content);if(["day","week"].includes(p.content))openCourse();});
     $("school-view").addEventListener("change",()=>{$("screen-content").value=$("school-view").value;persist();hooks.preview();});
@@ -185,7 +184,7 @@ const OMScreen = (() => {
       else{$("screen-date-settings").open=true;$("calendar-layout").focus();$("screen-date-settings").scrollIntoView?.({behavior:"smooth",block:"start"});}
     });
     window.addEventListener("message",e=>{if(e.origin!==location.origin||e.source!==$("course-frame").contentWindow)return;if(e.data?.type==="elink-course-draft"){tableDirty=!!e.data.dirty;status();}});
-    window.addEventListener("storage",e=>{if(e.key==="om6626-workspace-v1"){hooks.refresh();hooks.preview();status();}});
+    window.addEventListener("storage",e=>{if(e.key===OMFeatures.Store.key){hooks.refresh();hooks.preview();status();}});
     restore();
   }
   return {normalise,parse,current,capture,signature,persist,restore,device,context:contextChanged,init,exportPlan,importPlan,confirmed,setBackground,background,paintBackground,openCourse,saveBeforeOTA,hasProfile:()=>!!hooks?.read().screenProfile,dirty:()=>tableDirty};

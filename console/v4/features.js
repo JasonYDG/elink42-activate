@@ -70,9 +70,10 @@ const OMFeatures = (() => {
     return clone(value);
   }
   class Store {
+    static get key() { return "elink42-secure-workspace-v1"; }
     constructor(storage) {
       this.storage = storage;
-      const raw = storage.getItem("elink42-secure-workspace-v1");
+      const raw = storage.getItem(Store.key);
       this.data = raw ? validate(JSON.parse(raw)) : defaults();
       if (!raw) {
         const old = JSON.parse(storage.getItem("elink42-secure-editor-v1") || "{}");
@@ -80,10 +81,13 @@ const OMFeatures = (() => {
           ({id: "migrated-" + i, title: text.replace(/^\[(x| )\]\s*/i, "").slice(0, 100), description: "", due: "", done: /^\[x\]/i.test(text)}));
       }
     }
-    commit(next) {
+    commit(next, verify = false) {
       const data = validate(next), text = JSON.stringify(data);
       if (text.length > 4500000) throw Error(OMI18n.t("工作区超过 4.5 MB，请先导出备份并减少模板图片"));
-      this.storage.setItem("elink42-secure-workspace-v1", text); this.data = data;
+      this.storage.setItem(Store.key, text);
+      if (verify && this.storage.getItem(Store.key) !== text)
+        throw Error("屏幕方案未能保存到本机，升级尚未开始。请先导出方案。");
+      this.data = data;
     }
     change(callback) { const next = clone(this.data); callback(next); this.commit(next); }
   }

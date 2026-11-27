@@ -2,7 +2,7 @@
 (() => {
   const params = new URLSearchParams(location.search), previewMode = params.get("preview") === "1";
   const embedded=params.get("embedded")==="1";document.documentElement.dataset.embedded=String(embedded);
-  const key = previewMode ? "elink42-course-table-c-v1" : "om6626-workspace-v1", $ = id => document.getElementById(id);
+  const key = previewMode ? "elink42-course-table-c-v1" : OMFeatures.Store.key, $ = id => document.getElementById(id);
   const weekdays = "日一二三四五六", sample = Array(7).fill("");
   sample[4] = ["08:00-08:45 语文", "08:55-09:40 数学", "10:10-10:55 英语", "11:05-11:50 物理",
     "14:00-14:45 化学", "14:55-15:40 生物", "16:00-16:45 体育", "16:55-17:40 自习"].join("\n");
