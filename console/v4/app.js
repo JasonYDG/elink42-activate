@@ -31,16 +31,7 @@
   const model = () => Number($("preview-model").value);
   const uid = () => crypto.randomUUID();
   function connectedName() {
-    if (!client.ready) return "";
-    const mac = client.deviceInfo?.mac;
-    if (mac && OMProtocol.sdkBoard(client.board)) {
-      const hex = mac.replaceAll(":", "").toUpperCase();
-      const panel = client.config?.model;
-      if (client.sdkRevision >= 11 && (panel === 2 || panel === 5))
-        return "ELINK42-" + (panel === 5 ? "4C" : "3C") + hex.slice(-4);
-      return client.device.name || "ELINK42-" + hex.slice(-6);
-    }
-    return client.device.name || "";
+    return client.ready ? client.screenName : "";
   }
   const settingsMap = {theme: "theme", "font-size": "fontSize", "urgent-hours": "urgentHours", dither: "dither",
     "dither-strength": "strength", brightness: "brightness", contrast: "contrast", gamma: "gamma", "red-threshold": "redThreshold", "packet-bytes": "packetBytes", "packet-delay": "packetDelay"};
@@ -428,9 +419,10 @@
     client.otaActive=true;update();
     try{
       OMScreen.saveBeforeOTA();
-      await SecureUpdate.transfer(client,updatePackage,(percent,message)=>{
+      const result=await SecureUpdate.transfer(client,updatePackage,(percent,message)=>{
         $("secure-state").textContent=message;progress(percent,message);
       });
+      if(result==="installed")return;
       $("secure-state").textContent="升级完成，已核对本屏的版本和镜像。";
       try {await connected(device);}
       catch(error){log(error.message);$("secure-state").textContent+=" 请点「连接屏幕」继续配置。";}
@@ -866,7 +858,7 @@
   $("nfc-state").textContent = "NDEFReader" in window ? OMI18n.t("支持 Web NFC；需要 NFC 硬件和浏览器权限。标签是本网页独立格式。") : OMI18n.t("此浏览器不提供 Web NFC（Windows Edge 不支持）；当前不可读写 NFC。");
   bind("nfc-write", async () => {
     if (!client.ready || !("NDEFReader" in window)) throw Error(OMI18n.t("先连接设备并使用支持 Web NFC 的浏览器"));
-    const reader = new NDEFReader(); await reader.write({records: [{recordType: "mime", mediaType: "application/json", data: new TextEncoder().encode(JSON.stringify({format: "om6626-web-device", id: client.device.id, name: client.device.name || "OM6626"}))}]});
+    const reader = new NDEFReader(); await reader.write({records: [{recordType: "mime", mediaType: "application/json", data: new TextEncoder().encode(JSON.stringify({format: "om6626-web-device", id: client.device.id, name: connectedName() || "OM6626"}))}]});
   }, OMI18n.t("网页设备标签已写入。"));
   let nfcAbort;
   bind("nfc-read", async () => {

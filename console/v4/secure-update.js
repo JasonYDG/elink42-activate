@@ -11,7 +11,7 @@ const SecureUpdate = (() => {
   async function parse(buffer) {
     const bytes=new Uint8Array(buffer), view=new DataView(buffer);
     if(bytes.length<148 || new TextDecoder().decode(bytes.subarray(0,8))!=="E42OTA04")
-      throw Error("请选择加密版 V4 的 .e42ota 文件。");
+      throw Error("请选择适用于此屏的加密 .e42ota 升级包。");
     const model=view.getUint32(8,true), version=view.getUint32(12,true), count=view.getUint32(16,true);
     if(!families[model] || version<3401 || count<1 || count>60 || bytes.length!==148+4112*count ||
         hex(bytes.subarray(52,84))!==families[model]) throw Error("升级包长度、屏型或授权系列有误。");
@@ -24,15 +24,24 @@ const SecureUpdate = (() => {
     const v=await ch.readValue();
     if(v.byteLength!==20 || v.getUint8(0)!==4) throw Error("本屏未提供 V4 无线升级接口。");
     const error=v.getUint8(3);
-    if(error)throw Error(errors[error] || "设备停止了此次升级。");
+    if(error)throw Object.assign(Error(errors[error] || "设备停止了此次升级。"),{deviceReported:true});
     return {mode:v.getUint8(1),model:v.getUint8(2),offset:v.getUint32(4,true),version:v.getUint32(8,true),digest:hex(new Uint8Array(v.buffer,v.byteOffset+12,8))};
   }
   async function channel(device) {
     const server=await device.gatt.connect(), svc=await server.getPrimaryService(ELActivation.SERVICE);
     return svc.getCharacteristic(characteristicId);
   }
+  async function writeForReboot(device,ch,command) {
+    try {await ch.writeValueWithResponse(command);}
+    catch(error) {
+      // The browser can reject the write before it delivers the disconnect
+      // event. The receiver resets 1.5 seconds after accepting the commit.
+      for(let i=0;i<15 && device.gatt.connected;i++)await sleep(200);
+      if(device.gatt.connected){await status(ch);throw error;}
+    }
+  }
   async function afterReboot(device,mode,model) {
-    const end=Date.now()+60000;
+    const end=Date.now()+120000;
     // Wait for the device's own reset. Disconnecting too early can reconnect
     // to the still-running sender and leave its old services cached.
     while(device.gatt.connected && Date.now()<end)await sleep(150);
@@ -41,7 +50,7 @@ const SecureUpdate = (() => {
       try {
         const ch=await channel(device), state=await status(ch);
         if(state.mode===mode && state.model===model)return {ch,state};
-      } catch {}
+      } catch(error){if(error.deviceReported)throw error;}
       device.gatt.disconnect();
     }
     throw Error("等待同一块屏幕重启超时。请重新连接后核对版本。");
@@ -53,30 +62,46 @@ const SecureUpdate = (() => {
     if(!power?.mv || power.mv<power.minimum)throw Error("电压不足，当前 "+((power?.mv||0)/1000).toFixed(2)+" V。");
     const app=await service.getCharacteristic(characteristicId), before=await status(app);
     if(before.mode!==0 || before.model!==pkg.model || before.version>pkg.version)throw Error("本屏无法安装所选版本。");
+    if(before.version===pkg.version && before.digest===pkg.digest){
+      progress(100,"已核对，本屏已经运行所选固件。");
+      return "installed";
+    }
     let payload=Math.min(client.reportedPayload || 180,244)-5;
     let ch,committed=false;
     try {
       progress(0,"正在进入无线升级模式…");
-      await app.writeValueWithResponse(new TextEncoder().encode("E42RX004"));
+      await writeForReboot(device,app,new TextEncoder().encode("E42RX004"));
       ({ch}=await afterReboot(device,1,pkg.model));
-      let offset=0, shown=-1;
+      let offset=0, shown=-1, retryAt=-1;
       while(offset<pkg.bytes.length) {
         const count=Math.min(payload,pkg.bytes.length-offset), packet=new Uint8Array(5+count);
         packet[0]=0xa1;new DataView(packet.buffer).setUint32(1,offset,true);packet.set(pkg.bytes.subarray(offset,offset+count),5);
         try { await ch.writeValueWithResponse(packet); }
         catch(error) {
-          if(!device.gatt.connected)throw error;
-          const ack=await status(ch);
+          let ack;
+          if(!device.gatt.connected){
+            progress(Math.max(0,shown),"蓝牙已断开，正在重连本屏并核对已接收位置…");
+            ({ch,state:ack}=await afterReboot(device,1,pkg.model));
+          }else ack=await status(ch);
+          if(ack.mode!==1 || ack.model!==pkg.model)throw Error("屏幕已退出升级模式，请重新开始。");
           if(ack.offset===offset && payload>15){payload=15;continue;}
+          if(ack.offset===offset && retryAt!==offset){retryAt=offset;continue;}
           if(ack.offset!==offset+count)throw error;
         }
         offset+=count;
         const percent=Math.floor(offset*97/pkg.bytes.length);
         if(percent!==shown){shown=percent;progress(percent,"正在传输加密固件 "+percent+"%");}
       }
-      if((await status(ch)).offset!==pkg.bytes.length)throw Error("屏幕接收长度有误。");
+      let received;
+      try {received=await status(ch);}
+      catch(error) {
+        if(device.gatt.connected || error.deviceReported)throw error;
+        ({ch,state:received}=await afterReboot(device,1,pkg.model));
+      }
+      if(received.offset!==pkg.bytes.length)throw Error("屏幕接收长度有误。");
       progress(98,"正在校验并重启…");
-      await ch.writeValueWithResponse(Uint8Array.of(0xa2));committed=true;
+      await writeForReboot(device,ch,Uint8Array.of(0xa2));
+      committed=true;
       const {state}=await afterReboot(device,0,pkg.model);
       if(state.version!==pkg.version || state.digest!==pkg.digest)throw Error("屏幕已恢复运行，但读回的镜像与升级包不符。");
       progress(100,"升级完成，已核对版本和镜像。");

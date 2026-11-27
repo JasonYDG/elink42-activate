@@ -24,6 +24,10 @@ class OMClient {
   }
   get canPublish() { return [2, 5].includes(this.config?.model); }
   get deviceInfoSupported() { return OMProtocol.sdkBoard(this.board) ? !!(this.sdkCapabilities & 1) : this.firmwareRevision >= 32 && this.board?.name === OMProtocol.OTA_MARKER; }
+  get screenName() {
+    const mac = this.deviceInfo?.mac;
+    return mac ? "ELINK42-" + mac.replaceAll(":", "").slice(-6) : this.device?.name || "";
+  }
   setTransfer(payload, delay) {
     OMProtocol.integer(payload, 20, 244, OMI18n.t("传输上限")); OMProtocol.integer(delay, 0, 100, OMI18n.t("包间隔"));
     if (this.busy) throw Error(OMI18n.t("传输中无法修改包设置"));
@@ -166,6 +170,7 @@ class OMClient {
       const info = await this.request(Uint8Array.of(0x24, 0x53, sequence), b => b[0] === 0x5B && b[1] === sequence, OMI18n.t("读取独立固件版本"));
       if (info.length !== 8 || info[2] !== 1 || !info[3] || info[6] !== this.config.model || info[7]) throw Error(OMI18n.t("独立固件版本回执无效"));
       this.sdkRevision = info[3]; this.sdkCapabilities = info[4] | info[5] << 8;
+      if (!(this.sdkCapabilities & 0x8000)) throw Error("此控制台支持加密 V4 及后续版本。");
     }
     const sequence = this.nextSequence();
     const probe = this.wait(b => ((b.length === 4 || (OMProtocol.sdkBoard(this.board) && b.length === 6)) && b[0] === 0x51 && b[1] === 0x24 && b[2] === sequence) ||
@@ -179,8 +184,9 @@ class OMClient {
     if (!this.refreshStatus) this.log(OMI18n.t("当前固件没有带序号的刷新回执；请升级 refresh-state 配套固件后再操作屏幕"));
     if (this.refreshStatus) await this.readCalendar();
     if (this.connectCancelled || !this.device.gatt.connected) throw Error(OMI18n.t("连接已断开"));
+    await this.readDeviceInfo();
     this.ready = true;
-    this.log(OMI18n.t("已连接 ") + (this.device.name || this.device.id) + OMI18n.t(" · Web 固件 / ") +
+    this.log(OMI18n.t("已连接 ") + (this.screenName || this.device.id) + OMI18n.t(" · Web 固件 / ") +
       (this.config.model === 5 ? OMI18n.t("JD79668 四色") : OMI18n.t("SSD1619 三色")));
   }
   armIdleDisconnect() {
